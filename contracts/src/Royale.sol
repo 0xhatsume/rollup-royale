@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -22,10 +22,11 @@ contract Royale is Ownable {
     bool public worldPaused = false;
     uint8 public houseFee = 2;
     mapping(address => uint256) public playerInGame;
-
+    enum Dir { DOWN, LEFT, UP, RIGHT } //using numpad 0, 1, 2, 3
 
     struct GameInfo {
         uint8 playersCount;
+        uint8 itemCount;
         uint256 minStake;
         bool hasStarted;
         bool hasEnded;
@@ -35,7 +36,21 @@ contract Royale is Ownable {
 
     struct Tile {
         uint8 occupantId; // 1 - 4 is player, > 4 is item, 0 is empty
+        bool isWall;
     }
+
+    /*
+    00 01 02 03 04 05 06 07 08 09
+    10 11 12 13 14 15 16 17 18 19
+    20 21 22 23 24 25 26 27 28 29
+    30 31 32 33 34 35 36 37 38 39
+    40 41 42 43 44 45 46 47 48 49
+    50 51 52 53 54 55 56 57 58 59
+    60 61 62 63 64 65 66 67 68 69
+    70 71 72 73 74 75 76 77 78 79
+    80 81 82 83 84 85 86 87 88 89
+    90 91 92 93 94 95 96 97 98 99
+    */
 
     struct PlayerOrItem {
         int8 id;
@@ -45,7 +60,9 @@ contract Royale is Ownable {
     struct GameRoom {
         GameInfo info;
         Tile[TILE_COUNT] board;
-        uint8[MAX_PLAYERS] playerIds;
+        address[MAX_PLAYERS] playerIds;
+        uint8[MAX_PLAYERS*2-1] positions;
+        bool[MAX_PLAYERS] playerAlive;
         bool[MAX_PLAYERS] playerReady;
         bool[MAX_PLAYERS] playerPauseVote;
         uint256[MAX_PLAYERS] playerLastMoveBlock;
@@ -63,6 +80,11 @@ contract Royale is Ownable {
     E8 - Game has not started
     E9 - Not Enough Players in Game
     E10 - Not all players are ready
+    E11 - Player not in this game
+    E12 - Cannot find player's id in game
+    E13 - Player is dead
+    E14 - Move is Out Of Bounds
+    E15 - Move is Obstructed
     */
 
     modifier validAddress(address _addr) {
@@ -114,6 +136,16 @@ contract Royale is Ownable {
         _;
     }
 
+    modifier playerIsInGame(uint256 _roomId) {
+        require(playerInGame[msg.sender] == _roomId, "E11");
+        _;
+    }
+
+    modifier playerIsAlive(uint256 _roomId){
+        require(_getPlayerId(_roomId)>0, "E12");
+        require(games[_roomId].playerAlive[_getPlayerId(_roomId)-1] == true, "E13");
+        _;
+    }
 
     // getters
     function _allPlayersAreReady(uint256 _roomId) internal view returns (bool) {
@@ -125,20 +157,130 @@ contract Royale is Ownable {
         return true;
     }
 
+    function _getPlayerId(uint256 _roomId) internal view returns (uint8){
+        for (uint8 i = 0; i < games[_roomId].playersIds.length; i++) {
+            if (games[_roomId].playerIds[i] == msg.sender) {
+                return i+1;
+            }
+        }
+        return 0;
+    }
+    
     // setters
 
+    // internal utils
+
+    function _getRandomTile(uint256 _roomId, uint256 _seed) internal view returns (uint8) {
+        // get random number
+        uint8 random = uint8(
+                uint256(keccak256(
+                    abi.encodePacked(
+                        block.timestamp, 
+                        block.difficulty,
+                        _seed
+                        )
+                        )) % TILE_COUNT
+                    );
+
+        // if tile is not a wall
+        if (games[_roomId].board[random].isWall == false) {
+            // return tile
+            return random;
+        } else {
+            // else get another random tile
+            return _getRandomTile(_roomId, _seed+8);
+        }
+    }
+
+    function _getUnoccupiedTile(uint256 _roomId, uint256 _seed) internal view returns (uint8) {
+        // get random tile
+        uint8 random = _getRandomTile(_roomId, _seed);
+        // if tile is unoccupied
+        if (games[_roomId].board[random].occupantId == 0) {
+            // return tile
+            return random;
+        } else {
+            // else get another random tile
+            return _getUnoccupiedTile(_roomId, _seed+8);
+        }
+    }
+
+    function _spawnItems(uint256 _roomId) internal returns (bool) {
+        // get item count in game
+        uint8 itemCount = games[_roomId].info.itemCount;
+        // get number of players alive
+        uint8 playersAlive = games[_roomId].info.playersCount;
+        // get number of items to spawn (1 less than number of players on board)
+        uint8 itemsToSpawn = playersAlive - itemCount - 1;
+        // correct if itemsToSpawn is negative
+        itemsToSpawn = itemsToSpawn > 0 ? itemsToSpawn : 0;
+
+        // for each item position in positions, look for empty item position to spawn item
+        for (uint8 i = 4; i < MAX_PLAYERS*2-1; i++) {
+            // if position is not max value
+            if (games[_roomId].positions[i] == type(uint8).max) {
+                // get random tile
+                uint8 random = _getUnoccupiedTile(_roomId, i);
+                // set tile to new item id
+                games[_roomId].board[random].occupantId = i;
+                // set position to tile index
+                games[_roomId].positions[i] = random;
+                
+                // increment item count
+                games[_roomId].info.itemCount++;
+                itemsToSpawn--;
+                // if itemsToSpawn hits 0, break loop
+                if (itemsToSpawn == 0) {
+                    break;
+                }
+            }
+        }
+        return true;
+    }
+
+    function _getIndexDiffFromDirection(Dir _direction) internal view returns (int8){
+        if (_direction == Dir.Up) {
+            return MAP_WIDTH;
+        } else if (_direction == Dir.Down) {
+            return MAP_WIDTH * -1;
+        } else if (_direction == Dir.Left) {
+            return -1;
+        } else if (_direction == Dir.Right) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
 
     // public functions
     function createGame(uint256 _minStake) external payable 
         worldFunctioning 
         enoughFunds(msg.value, _minStake) 
         playerNotInGame
-        {
+    {
         GameRoom memory game;
         game.info.playersCount = 1;
         game.info.minStake = _minStake;
-        game.playerIds[0] = 1;
+        game.playerIds[0] = msg.sender;
         games.push(game);
+
+        uint8 roomId = uint8(games.length - 1);
+
+        //initialize all postions to max
+        for (uint8 i = 0; i < MAX_PLAYERS*2-1; i++) {
+            games[roomId].positions[i] = type(uint8).max; // max value means not on board
+        }
+
+        // set player in game
+        playerInGame[msg.sender] = roomId; // assume game length always game room id
+
+        // set player at top left corner of board
+        uint8 x = MAP_WIDTH / 3;
+        uint8 y = MAP_HEIGHT / 3;
+        uint8 spawnTile = (x - 1) + ((y-1) * MAP_WIDTH);
+        // set player spawn
+        games[roomId].board[spawnTile].occupantId = 1;
+        games[roomId].positions[0] = spawnTile;
     }
 
     function joinGame(uint256 _roomId) external payable 
@@ -147,8 +289,40 @@ contract Royale is Ownable {
         playerNotInGame
         joinable(_roomId)
     {
-        games[_roomId].info.playersCount++;
-        games[_roomId].playerIds[games[_roomId].info.playersCount - 1] = games[_roomId].info.playersCount;
+        games[_roomId].info.playersCount++; // increment player count
+        uint8 playerId = games[_roomId].info.playersCount - 1; // get player id
+        games[_roomId].playerIds[playerId] = msg.sender; // set player id
+
+        playerInGame[msg.sender] = _roomId; // set player in game
+
+        uint8 x;
+        uint8 y;
+        uint8 spawnTile;
+
+        // if player is 2 set player at bottom right corner of board
+        if (playerId == 1) {
+            x = MAP_WIDTH - (MAP_WIDTH / 3);
+            y = MAP_HEIGHT - (MAP_HEIGHT / 3);
+            spawnTile = (x - 1) + ((y-1) * MAP_WIDTH);
+        }
+
+        // if player is 3 set player at bottom left corner of board
+        if (playerId == 2) {
+            x = MAP_WIDTH / 3;
+            y = MAP_HEIGHT - (MAP_HEIGHT / 3);
+            spawnTile = (x - 1) + ((y-1) * MAP_WIDTH);
+        }
+
+        // if player is 4 set player at top right corner of board
+        if (playerId == 3) {
+            x = MAP_WIDTH - (MAP_WIDTH / 3);
+            y = MAP_HEIGHT / 3;
+            spawnTile = (x - 1) + ((y-1) * MAP_WIDTH);
+        }
+
+        // set player spawn
+        games[_roomId].board[spawnTile].occupantId = playerId + 1;
+        games[_roomId].positions[0] = spawnTile;
     }
 
     function startGame(uint256 _roomId) external payable 
@@ -156,12 +330,64 @@ contract Royale is Ownable {
         enoughPlayers(_roomId)
         allPlayersReady(_roomId)
         gameNotStarted(_roomId)
-    {   
-        // spawn player positions
-
+    {          
         // spawn items
+        _spawnItems(_roomId);
 
         emit GameStarted(_roomId);
+    }
+
+    function movePlayer(uint256 _roomId, Dir _direction) external 
+        worldFunctioning 
+        gameStarted(_roomId)
+        playerIsInGame(_roomId)
+        playerIsAlive(_roomId)
+    {   
+        // get player id
+        uint8 playerId = _getPlayerId(_roomId); //already checked by playerIsInGame
+        
+        // get player position
+        uint8 playerPosition = games[_roomId].positions[playerId];
+
+        // get position difference from direction
+        int8 indexDiff = _getIndexDiffFromDirection(_direction);
+
+        // get new position
+        uint8 newPosition = uint8(int8(playerPosition) + indexDiff);
+
+        // revert if new position is out of bounds
+        require(newPosition>=0 && newPosition <TILE_COUNT, "E14");
+
+        // if playerPosition is at left edge of board and direction is left, revert
+        if (playerPosition % MAP_WIDTH == 0 && _direction == Dir.Left) {
+            require(newPosition % MAP_WIDTH != MAP_WIDTH - 1, "E14");
+        }
+        // if playerPosition is at right edge of board and direction is right, revert
+        if (playerPosition % MAP_WIDTH == MAP_WIDTH - 1 && _direction == Dir.Right) {
+            require(newPosition % MAP_WIDTH != 0, "E14");
+        }
+
+        // revert if new position is a wall
+        require(games[_roomId].board[newPosition].isWall == false, "E15");
+
+        // if new position is not occupied
+        if (games[_roomId].board[newPosition].occupantId == 0) {
+            // set new position to player id
+            games[_roomId].board[newPosition].occupantId = playerId;
+            // set old position to 0
+            games[_roomId].board[playerPosition].occupantId = 0;
+            // set player position to new position
+            games[_roomId].positions[playerId] = newPosition;
+        } else {
+            // if new position is occupied by item
+            if (games[_roomId].board[newPosition].occupantId > 3) {
+            } else {
+                // if new position is occupied by player
+                //
+            }
+        }
+        
+
     }
 
 }
