@@ -9,6 +9,7 @@ contract Royale is Ownable {
     uint8 public constant MAP_WIDTH = 10;
     uint8 public constant MAP_HEIGHT = 10;
     uint8 public constant TILE_COUNT = MAP_WIDTH * MAP_HEIGHT;
+    uint16 public constant STARTING_FT = 100;
     address public burnerWallet;
 
     event GameStarted(uint256 _roomId);
@@ -39,7 +40,20 @@ contract Royale is Ownable {
         bool isWall;
     }
 
+    struct GameRoom {
+        GameInfo info;
+        Tile[TILE_COUNT] board;
+        address[MAX_PLAYERS] playerIds;
+        uint16[MAX_PLAYERS] playerFTs;
+        uint8[MAX_PLAYERS*2-1] positions;
+        bool[MAX_PLAYERS] playerAlive;
+        bool[MAX_PLAYERS] playerReady;
+        bool[MAX_PLAYERS] playerPauseVote;
+        uint256[MAX_PLAYERS] playerLastMoveBlock;
+    }
+
     /*
+    Board Layout
     00 01 02 03 04 05 06 07 08 09
     10 11 12 13 14 15 16 17 18 19
     20 21 22 23 24 25 26 27 28 29
@@ -51,22 +65,6 @@ contract Royale is Ownable {
     80 81 82 83 84 85 86 87 88 89
     90 91 92 93 94 95 96 97 98 99
     */
-
-    struct PlayerOrItem {
-        int8 id;
-        int16 ft;
-    }
-
-    struct GameRoom {
-        GameInfo info;
-        Tile[TILE_COUNT] board;
-        address[MAX_PLAYERS] playerIds;
-        uint8[MAX_PLAYERS*2-1] positions;
-        bool[MAX_PLAYERS] playerAlive;
-        bool[MAX_PLAYERS] playerReady;
-        bool[MAX_PLAYERS] playerPauseVote;
-        uint256[MAX_PLAYERS] playerLastMoveBlock;
-    }
 
     /* Modifiers */
     /*
@@ -142,8 +140,8 @@ contract Royale is Ownable {
     }
 
     modifier playerIsAlive(uint256 _roomId){
-        require(_getPlayerId(_roomId)>0, "E12");
-        require(games[_roomId].playerAlive[_getPlayerId(_roomId)-1] == true, "E13");
+        require(_getCallingPlayerId(_roomId)>0, "E12");
+        require(games[_roomId].playerAlive[_getCallingPlayerId(_roomId)-1] == true, "E13");
         _;
     }
 
@@ -157,8 +155,8 @@ contract Royale is Ownable {
         return true;
     }
 
-    function _getPlayerId(uint256 _roomId) internal view returns (uint8){
-        for (uint8 i = 0; i < games[_roomId].playersIds.length; i++) {
+    function _getCallingPlayerId(uint256 _roomId) internal view returns (uint8){
+        for (uint8 i = 0; i < games[_roomId].playerIds.length; i++) {
             if (games[_roomId].playerIds[i] == msg.sender) {
                 return i+1;
             }
@@ -252,6 +250,42 @@ contract Royale is Ownable {
         }
     }
 
+    function _getItemFtDiff(uint8 _seed) internal view returns (int8){
+        // get random number between -50 to 50
+        int8 random = int8(
+                uint256(keccak256(
+                    abi.encodePacked(
+                        block.timestamp, 
+                        block.difficulty,
+                        _seed
+                        )
+                        )) % 100
+                    ) - 50;
+        return random;
+    }
+
+    function _updatePlayerFT(uint256 _roomId, uint8 _tile, uint8 _playerId, int8 _ftDiff) internal returns (uint16) {
+        // get player ft
+        uint16 playerFT = games[_roomId].playerFTs[_playerId-1];
+
+        // get final ft
+        int16 finalFT = int16(playerFT) + _ftDiff;
+        finalFT = finalFT < 0 ? 0 : finalFT; // if final ft is less than 0, set to 0
+
+        // set player ft
+        games[_roomId].playerFTs[_playerId-1] = uint16(finalFT);
+
+        // if finalFT is 0, player is dead
+        if (finalFT == 0) {
+            games[_roomId].playerAlive[_playerId-1] = false;
+            games[_roomId].info.playersCount--;
+            games[_roomId].board[_tile].occupantId = 0; // remove player from tile
+        }
+
+        return uint16(finalFT);
+        
+    }
+
     // public functions
     function createGame(uint256 _minStake) external payable 
         worldFunctioning 
@@ -262,6 +296,7 @@ contract Royale is Ownable {
         game.info.playersCount = 1;
         game.info.minStake = _minStake;
         game.playerIds[0] = msg.sender;
+        game.playerFTs[0] = STARTING_FT;
         games.push(game);
 
         uint8 roomId = uint8(games.length - 1);
@@ -290,8 +325,9 @@ contract Royale is Ownable {
         joinable(_roomId)
     {
         games[_roomId].info.playersCount++; // increment player count
-        uint8 playerId = games[_roomId].info.playersCount - 1; // get player id
-        games[_roomId].playerIds[playerId] = msg.sender; // set player id
+        uint8 playerId = games[_roomId].info.playersCount; // get player id
+        games[_roomId].playerIds[playerId-1] = msg.sender; // set player id
+        games[_roomId].playerFTs[playerId-1] = STARTING_FT; // set player FT
 
         playerInGame[msg.sender] = _roomId; // set player in game
 
@@ -321,8 +357,31 @@ contract Royale is Ownable {
         }
 
         // set player spawn
-        games[_roomId].board[spawnTile].occupantId = playerId + 1;
+        games[_roomId].board[spawnTile].occupantId = playerId;
         games[_roomId].positions[0] = spawnTile;
+    }
+
+    function setReady(uint256 _roomId) external 
+        worldFunctioning 
+        playerIsInGame
+    {
+        // get player id
+        uint8 playerId = _getCallingPlayerId(_roomId);
+        require(playerId>0, "E11");
+
+        // set player ready
+        games[_roomId].playerReady[playerId-1] = true;
+    }
+
+    function setNotReady(uint256 _roomId) external 
+        worldFunctioning 
+        playerIsInGame
+    {
+        // get player id
+        uint8 playerId = _getCallingPlayerId(_roomId);
+        require(playerId>0, "E11");
+        // set player not ready
+        games[_roomId].playerReady[playerId-1] = false;
     }
 
     function startGame(uint256 _roomId) external payable 
@@ -344,10 +403,10 @@ contract Royale is Ownable {
         playerIsAlive(_roomId)
     {   
         // get player id
-        uint8 playerId = _getPlayerId(_roomId); //already checked by playerIsInGame
+        uint8 playerId = _getCallingPlayerId(_roomId); //already checked by playerIsInGame
         
         // get player position
-        uint8 playerPosition = games[_roomId].positions[playerId];
+        uint8 playerPosition = games[_roomId].positions[playerId-1];
 
         // get position difference from direction
         int8 indexDiff = _getIndexDiffFromDirection(_direction);
@@ -377,14 +436,33 @@ contract Royale is Ownable {
             // set old position to 0
             games[_roomId].board[playerPosition].occupantId = 0;
             // set player position to new position
-            games[_roomId].positions[playerId] = newPosition;
-        } else {
+            games[_roomId].positions[playerId-1] = newPosition;
+
+        } else if (games[_roomId].board[newPosition].occupantId > 3){ 
             // if new position is occupied by item
-            if (games[_roomId].board[newPosition].occupantId > 3) {
-            } else {
-                // if new position is occupied by player
-                //
-            }
+            
+                // get item id
+                uint8 itemId = games[_roomId].board[newPosition].occupantId;
+                // get item ft
+                int8 itemFT = _getItemFtDiff(newPosition);
+                // update player ft
+                uint16 playerNewFT =_updatePlayerFT(_roomId, newPosition, playerId, itemFT);
+
+                // if playerNewFT is 0, set Tile occupantId to 0 else set to player id
+                games[_roomId].board[newPosition].occupantId = playerNewFT == 0 ? 0 : playerId;
+
+                // reduce item count
+                games[_roomId].itemCounts[itemId]--;
+
+        } else if (games[_roomId].board[newPosition].occupantId <= 3) { 
+            // if new position is occupied by player
+
+                // get player id of occupant
+                uint8 occupantId = games[_roomId].board[newPosition].occupantId;
+                // get battle results
+                (uint8 winnerId, uint16 winnerFT, uint16 loserFT) = _getBattleResults(
+                    _roomId, playerId, occupantId);
+
         }
         
 
