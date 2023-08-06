@@ -12,7 +12,19 @@ contract Royale is Ownable {
     uint16 public constant STARTING_FT = 100;
     address public burnerWallet;
 
+    event GameCreated(uint256 _roomId, address _creator);
+    event GameAbandoned(uint256 _roomId); //
     event GameStarted(uint256 _roomId);
+    event PlayerJoined(uint256 _roomId, address _player);
+    event PlayerReady(uint256 _roomId, address _player);
+    event PlayerNotReady(uint256 _roomId, address _player);
+    event PlayerPaused(uint256 _roomId, address _player); //
+    event PlayerMoved(uint256 _roomId, address _player, uint8 _destinationTile);
+    event PlayerKilled(uint256 _roomId, address _player);
+    event PlayerLeft(uint256 _roomId, address _player);
+    event ItemSpawned(uint256 _roomId, uint8 _itemId, uint8 _tile);
+    event GameEnded(uint256 _roomId, address _winner);
+    event RewardSent(uint256 _roomId, address _winner, uint256 _reward);
 
     constructor(address _burnerWallet) {
         burnerWallet = _burnerWallet;
@@ -29,6 +41,7 @@ contract Royale is Ownable {
         uint8 playersCount;
         uint8 itemCount;
         uint256 minStake;
+        uint256 totalStaked;
         bool hasStarted;
         bool hasEnded;
         bool gamePaused;
@@ -49,7 +62,7 @@ contract Royale is Ownable {
         bool[MAX_PLAYERS] playerAlive;
         bool[MAX_PLAYERS] playerReady;
         bool[MAX_PLAYERS] playerPauseVote;
-        uint256[MAX_PLAYERS] playerLastMoveBlock;
+        uint256[MAX_PLAYERS] playerLastMoveTime;
     }
 
     /*
@@ -83,6 +96,7 @@ contract Royale is Ownable {
     E13 - Player is dead
     E14 - Move is Out Of Bounds
     E15 - Move is Obstructed
+    E16 - Prize not sent
     */
 
     modifier validAddress(address _addr) {
@@ -226,6 +240,7 @@ contract Royale is Ownable {
                 
                 // increment item count
                 games[_roomId].info.itemCount++;
+                emit ItemSpawned(_roomId, i+1, random);
                 itemsToSpawn--;
                 // if itemsToSpawn hits 0, break loop
                 if (itemsToSpawn == 0) {
@@ -286,6 +301,43 @@ contract Royale is Ownable {
         
     }
 
+    function _getBattleResults(uint256 _roomId, uint8 playerId, uint8 occupantId) internal view returns (uint8) {
+        // get player ft
+        uint16 playerFT = games[_roomId].playerFTs[playerId-1];
+        // get occupant ft
+        uint16 occupantFT = games[_roomId].playerFTs[occupantId-1];
+        // get total FT
+        uint16 totalFT = playerFT + occupantFT;
+
+        // chance of player winning is playerFT / totalFT
+        uint8 chance = _perCentDivide(uint256(playerFT), uint256(totalFT));
+
+        // get random number between 1 to 100
+        uint8 random = uint8(
+                uint256(keccak256(
+                    abi.encodePacked(
+                        block.timestamp, 
+                        block.difficulty,
+                        _roomId,
+                        playerId,
+                        occupantId
+                        )
+                        )) % 100
+                    ) + 1;
+        
+        // if random number is less than chance, player wins
+        if (random <= chance) {
+            return playerId;
+        } else {
+            return occupantId;
+        }
+    }
+
+    function _perCentDivide(uint256 a, uint256 b) internal pure returns(uint256) {
+        require(b != 0, "division by zero will result in infinity.");
+        return (a * 1e18 * 100) / b;
+    }
+
     // public functions
     function createGame(uint256 _minStake) external payable 
         worldFunctioning 
@@ -316,6 +368,8 @@ contract Royale is Ownable {
         // set player spawn
         games[roomId].board[spawnTile].occupantId = 1;
         games[roomId].positions[0] = spawnTile;
+
+        emit GameCreated(roomId, msg.sender);
     }
 
     function joinGame(uint256 _roomId) external payable 
@@ -323,7 +377,8 @@ contract Royale is Ownable {
         enoughFunds(msg.value, games[_roomId].info.minStake) 
         playerNotInGame
         joinable(_roomId)
-    {
+    {   
+        games[_roomId].info.totalStaked += msg.value; // add to total staked
         games[_roomId].info.playersCount++; // increment player count
         uint8 playerId = games[_roomId].info.playersCount; // get player id
         games[_roomId].playerIds[playerId-1] = msg.sender; // set player id
@@ -359,6 +414,8 @@ contract Royale is Ownable {
         // set player spawn
         games[_roomId].board[spawnTile].occupantId = playerId;
         games[_roomId].positions[0] = spawnTile;
+
+        emit PlayerJoined(_roomId, msg.sender);
     }
 
     function setReady(uint256 _roomId) external 
@@ -371,6 +428,7 @@ contract Royale is Ownable {
 
         // set player ready
         games[_roomId].playerReady[playerId-1] = true;
+        emit PlayerReady(_roomId, msg.sender);
     }
 
     function setNotReady(uint256 _roomId) external 
@@ -382,6 +440,19 @@ contract Royale is Ownable {
         require(playerId>0, "E11");
         // set player not ready
         games[_roomId].playerReady[playerId-1] = false;
+        emit PlayerNotReady(_roomId, msg.sender);
+    }
+
+    function playerPause(uint256 _roomId) external 
+        worldFunctioning 
+        playerIsInGame
+    {
+        // get player id
+        uint8 playerId = _getCallingPlayerId(_roomId);
+        require(playerId>0, "E11");
+        // set player paused
+        games[_roomId].playerPauseVote[playerId-1] = true;
+        emit PlayerPaused(_roomId, msg.sender);
     }
 
     function startGame(uint256 _roomId) external payable 
@@ -437,6 +508,7 @@ contract Royale is Ownable {
             games[_roomId].board[playerPosition].occupantId = 0;
             // set player position to new position
             games[_roomId].positions[playerId-1] = newPosition;
+            emit PlayerMoved(_roomId, msg.sender, newPosition);
 
         } else if (games[_roomId].board[newPosition].occupantId > 3){ 
             // if new position is occupied by item
@@ -449,10 +521,19 @@ contract Royale is Ownable {
                 uint16 playerNewFT =_updatePlayerFT(_roomId, newPosition, playerId, itemFT);
 
                 // if playerNewFT is 0, set Tile occupantId to 0 else set to player id
-                games[_roomId].board[newPosition].occupantId = playerNewFT == 0 ? 0 : playerId;
+                if(playerNewFT == 0){
+                    games[_roomId].board[newPosition].occupantId = 0;
+                    emit PlayerKilled(_roomId, msg.sender);
+                }else{
+                    games[_roomId].board[newPosition].occupantId = playerId;
+                    emit PlayerMoved(_roomId, msg.sender, newPosition);
+                }
 
                 // reduce item count
                 games[_roomId].itemCounts[itemId]--;
+
+                // spawn new items
+                _spawnItems(_roomId);
 
         } else if (games[_roomId].board[newPosition].occupantId <= 3) { 
             // if new position is occupied by player
@@ -460,11 +541,50 @@ contract Royale is Ownable {
                 // get player id of occupant
                 uint8 occupantId = games[_roomId].board[newPosition].occupantId;
                 // get battle results
-                (uint8 winnerId, uint16 winnerFT, uint16 loserFT) = _getBattleResults(
+                uint8 winnerId = _getBattleResults(
                     _roomId, playerId, occupantId);
 
+                // if winnerId is playerId, set Occupan FT to 0 and set to dead
+                if (winnerId == playerId) {
+                    games[_roomId].playerFTs[occupantId-1] = 0;
+                    games[_roomId].playerAlive[occupantId-1] = false;
+                    games[_roomId].info.playersCount--; // reduce playercount
+                    emit PlayerKilled(_roomId, games[_roomId].playerIds[occupantId-1]);
+                    emit PlayerMoved(_roomId, msg.sender, newPosition);
+                } else {
+                    // else set player FT to 0 and set to dead
+                    games[_roomId].playerFTs[playerId-1] = 0;
+                    games[_roomId].playerAlive[playerId-1] = false;
+                    games[_roomId].info.playersCount--; // reduce playercount
+                    emit PlayerKilled(_roomId, msg.sender);
+                }
+
         }
-        
+
+        // check if game is over then end game and distribute prize
+        if (games[_roomId].info.playersCount == 1) {
+            // if game is over, set game to over
+            games[_roomId].info.gameOver = true;
+            // set game has ended
+            games[_roomId].info.hasEnded = true;
+            
+
+            // get winner address
+            for (uint8 i=0; i<games[_roomId].playerAlive.length; i++) {
+
+                if (games[_roomId].playerAlive[i] == true) {
+                    address winnerAddress = games[_roomId].playerIds[i];
+                    // emit game over event
+                    emit GameEnded(_roomId, winnerAddress);
+                    //send winner staked funds
+                    uint256 winnerFunds = games[_roomId].info.stakedFunds * (100-houseFee) / 100;
+                    (bool sent, ) = winnerAddress.call{value: winnerFunds}("");
+                    require(sent, "E16");
+                    emit RewardSent(_roomId, winnerAddress, winnerFunds);
+                    break;
+                }
+            }
+        }
 
     }
 
