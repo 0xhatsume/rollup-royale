@@ -9,9 +9,10 @@ contract Royale is Ownable {
     uint8 public constant MAP_WIDTH = 10;
     uint8 public constant MAP_HEIGHT = 10;
     uint8 public constant TILE_COUNT = MAP_WIDTH * MAP_HEIGHT;
-    uint16 public STARTING_FT = 100;
+    uint16 public starting_FT = 100;
     address public burnerWallet;
     bool public useBurnerWallet = true;
+    //bool public allUseBurnerWallet = true;
 
     event GameCreated(uint256 _roomId, address _creator);
     event GameAbandoned(uint256 _roomId); //
@@ -19,7 +20,10 @@ contract Royale is Ownable {
     event PlayerJoined(uint256 _roomId, address _player);
     event PlayerReady(uint256 _roomId, address _player);
     event PlayerNotReady(uint256 _roomId, address _player);
-    event PlayerPaused(uint256 _roomId, address _player); //
+    event PlayerPaused(uint256 _roomId, address _player);
+    event PlayerUnPaused(uint256 _roomId, address _player);
+    event GamePaused(uint256 _roomId);
+    event GameUnPaused(uint256 _roomId);
     event PlayerMoved(uint256 _roomId, address _player, uint8 _destinationTile);
     event PlayerKilled(uint256 _roomId, address _player);
     event PlayerLeft(uint256 _roomId, address _player);
@@ -27,8 +31,9 @@ contract Royale is Ownable {
     event GameEnded(uint256 _roomId, address _winner);
     event RewardSent(uint256 _roomId, address _winner, uint256 _reward);
 
-    constructor(address _burnerWallet) {
+    constructor(address _burnerWallet){
         burnerWallet = _burnerWallet;
+        games.push(); //pad with a dummy game
     }
 
     //array of all game rooms
@@ -39,6 +44,7 @@ contract Royale is Ownable {
     enum Dir { DOWN, LEFT, UP, RIGHT } //using numpad 0, 1, 2, 3
 
     struct GameInfo {
+        address gameCreator;
         uint8 playersCount;
         uint8 itemCount;
         uint256 minStake;
@@ -98,6 +104,8 @@ contract Royale is Ownable {
     E14 - Move is Out Of Bounds
     E15 - Move is Obstructed
     E16 - Prize not sent
+    E17 - Msg sender not Allowed Burner Wallet
+    E18 - Game is paused
     */
 
     modifier validAddress(address _addr) {
@@ -149,14 +157,41 @@ contract Royale is Ownable {
         _;
     }
 
-    modifier playerIsInGame(uint256 _roomId) {
-        require(playerInGame[msg.sender] == _roomId, "E11");
+    modifier gameNotPaused(uint256 _roomId) {
+        require(games[_roomId].info.gamePaused == false, "E18");
         _;
     }
 
-    modifier playerIsAlive(uint256 _roomId){
-        require(_getCallingPlayerId(_roomId)>0, "E12");
-        require(games[_roomId].playerAlive[_getCallingPlayerId(_roomId)-1] == true, "E13");
+    modifier gameNotEnded(uint256 _roomId) {
+        require(games[_roomId].info.hasEnded == false, "E6");
+        _;
+    }
+
+    modifier gameNotAbandoned(uint256 _roomId) {
+        require(games[_roomId].info.gameAbandoned == false, "E7");
+        _;
+    }
+
+    modifier playerIsInGame(uint256 _roomId, address _player, bool _useBurner){
+        require(playerInGame[(_useBurner? _player:msg.sender)] == _roomId, "E11");
+        _;
+    }
+
+    modifier playerIsAlive(uint256 _roomId, address _player, bool _useBurner){
+        require(_getCallingPlayerId(_roomId, _player, _useBurner)>0, "E12");
+        require(games[_roomId].playerAlive[_getCallingPlayerId(_roomId, _player, _useBurner)-1] == true, "E13");
+        _;
+    }
+
+    modifier onlyGameCreator(uint256 _roomId) {
+        require(games[_roomId].info.gameCreator == msg.sender, "E12");
+        _;
+    }
+
+    modifier allowedToUseBurner(bool _useBurner) {
+        if(_useBurner){
+            require(useBurnerWallet && burnerWallet == msg.sender, "E17");
+        }
         _;
     }
 
@@ -170,9 +205,11 @@ contract Royale is Ownable {
         return true;
     }
 
-    function _getCallingPlayerId(uint256 _roomId) internal view returns (uint8){
+    function _getCallingPlayerId(uint256 _roomId, address _player, bool _useBurner) internal view returns (uint8){
         for (uint8 i = 0; i < games[_roomId].playerIds.length; i++) {
-            if (games[_roomId].playerIds[i] == msg.sender) {
+            if (games[_roomId].playerIds[i] == 
+                (_useBurner? _player:msg.sender)
+                ) {
                 return i+1;
             }
         }
@@ -184,8 +221,16 @@ contract Royale is Ownable {
         burnerWallet = _burnerWallet;
     }
 
+    function setUseBurnerWallet(bool _useBurnerWallet) public onlyOwner {
+        useBurnerWallet = _useBurnerWallet;
+    }
+
+    // function setAllUseBurnerWallet(bool _allUseBurnerWallet) public onlyOwner {
+    //     allUseBurnerWallet = _allUseBurnerWallet;
+    // }
+
     function setStartingFT(uint16 _startingFT) public onlyOwner {
-        STARTING_FT = _startingFT;
+        starting_FT = _startingFT;
     }
 
     function toggleWorldPause() public onlyOwner {
@@ -199,7 +244,6 @@ contract Royale is Ownable {
     
 
     // internal utils
-
     function _getRandomTile(uint256 _roomId, uint256 _seed) internal view returns (uint8) {
         // get random number
         uint8 random = uint8(
@@ -351,22 +395,83 @@ contract Royale is Ownable {
         }
     }
 
-    function _perCentDivide(uint256 a, uint256 b) internal pure returns(uint256) {
+    function _perCentDivide(uint256 a, uint256 b) internal pure returns (uint256) {
         require(b != 0, "division by zero will result in infinity.");
         return (a * 1e18 * 100) / b;
     }
 
+    function _returnFundsToAll(uint256 _roomId) 
+        onlyGameCreator(_roomId)
+        internal returns (bool) {
+        // for each player
+        for (uint8 i=0; i<games[_roomId].playerIds.length; i++) {
+            // return funds to all players
+            games[_roomId].playerIds[i].call{value:
+                games[_roomId].info.minStake
+            }("");
+        }
+        return true;
+    }
+
+    function _bootAllPlayers(uint256 _roomId) 
+        onlyGameCreator(_roomId)
+        internal pure returns (bool) {
+        // for each player
+        for (uint8 i=0; i<games[_roomId].playerIds.length; i++) {
+            // set playerIn Game to 0
+            if(playerInGame[games[_roomId].playerIds[i]] == _roomId) {
+                playerInGame[games[_roomId].playerIds[i]] = 0;
+                games[_roomId].playerIds[i] = address(0);
+            }
+        }
+        return true;
+    }
+
+    function _endGame(uint256 _roomId) internal pure returns (bool) {
+        // set game has ended
+        games[_roomId].info.hasEnded = true;
+        
+        // get winner address
+        for (uint8 i=0; i<games[_roomId].playerAlive.length; i++) {
+            if (games[_roomId].playerAlive[i] == true) {
+                address winnerAddress = games[_roomId].playerIds[i];
+                // emit game over event
+                emit GameEnded(_roomId, winnerAddress);
+                //send winner staked funds
+                uint256 winnerFunds = games[_roomId].info.stakedFunds * (100-houseFee) / 100;
+                (bool sent, ) = winnerAddress.call{value: winnerFunds}("");
+                require(sent, "E16");
+                emit RewardSent(_roomId, winnerAddress, winnerFunds);
+                break;
+            }
+        }
+
+        return _bootAllPlayers(_roomId);
+    }
+
+    function _getPlayerPauseCount(uint256 _roomId) internal view returns (uint8) {
+        uint8 count = 0;
+        for (uint8 i=0; i<games[_roomId].playerPauseVote.length; i++) {
+            if (games[_roomId].playerPauseVote[i] == true && 
+                games[_roomId].playerAlive[i] == true) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     // public functions
     function createGame(uint256 _minStake) external payable 
-        worldFunctioning 
+        worldFunctioning()
         enoughFunds(msg.value, _minStake) 
-        playerNotInGame
+        playerNotInGame()
     {
         GameRoom memory game;
+        game.info.gameCreator = msg.sender;
         game.info.playersCount = 1;
         game.info.minStake = _minStake;
         game.playerIds[0] = msg.sender;
-        game.playerFTs[0] = STARTING_FT;
+        game.playerFTs[0] = starting_FT;
         games.push(game);
 
         uint8 roomId = uint8(games.length - 1);
@@ -391,16 +496,16 @@ contract Royale is Ownable {
     }
 
     function joinGame(uint256 _roomId) external payable 
-        worldFunctioning 
+        worldFunctioning()
         enoughFunds(msg.value, games[_roomId].info.minStake) 
-        playerNotInGame
+        playerNotInGame()
         joinable(_roomId)
     {   
         games[_roomId].info.totalStaked += msg.value; // add to total staked
         games[_roomId].info.playersCount++; // increment player count
         uint8 playerId = games[_roomId].info.playersCount; // get player id
         games[_roomId].playerIds[playerId-1] = msg.sender; // set player id
-        games[_roomId].playerFTs[playerId-1] = STARTING_FT; // set player FT
+        games[_roomId].playerFTs[playerId-1] = starting_FT; // set player FT
 
         playerInGame[msg.sender] = _roomId; // set player in game
 
@@ -436,41 +541,105 @@ contract Royale is Ownable {
         emit PlayerJoined(_roomId, msg.sender);
     }
 
-    function setReady(uint256 _roomId) external 
-        worldFunctioning 
-        playerIsInGame
+    function setReady(uint256 _roomId, address _player, bool _useBurner) external 
+        worldFunctioning()
+        playerIsInGame(_roomId, _player, _useBurner)
+        allowedToUseBurner(_useBurner)
     {
         // get player id
-        uint8 playerId = _getCallingPlayerId(_roomId);
+        uint8 playerId = _getCallingPlayerId(_roomId, _player, _useBurner);
         require(playerId>0, "E11");
 
         // set player ready
         games[_roomId].playerReady[playerId-1] = true;
-        emit PlayerReady(_roomId, msg.sender);
+        emit PlayerReady(_roomId, (_useBurner? _player:msg.sender));
     }
 
-    function setNotReady(uint256 _roomId) external 
-        worldFunctioning 
-        playerIsInGame
+    function setNotReady(uint256 _roomId, address _player, bool _useBurner) external 
+        worldFunctioning()
+        playerIsInGame(_roomId, _player, _useBurner)
+        allowedToUseBurner(_useBurner)
     {
         // get player id
-        uint8 playerId = _getCallingPlayerId(_roomId);
+        uint8 playerId = _getCallingPlayerId(_roomId, _player, _useBurner);
         require(playerId>0, "E11");
         // set player not ready
         games[_roomId].playerReady[playerId-1] = false;
-        emit PlayerNotReady(_roomId, msg.sender);
+        emit PlayerNotReady(_roomId, (_useBurner?_player:msg.sender));
     }
 
-    function playerPause(uint256 _roomId) external 
-        worldFunctioning 
-        playerIsInGame
+    function playerPause(uint256 _roomId, address _player, bool _useBurner) external 
+        worldFunctioning()
+        playerIsInGame(_roomId, _player, _useBurner)
+        allowedToUseBurner(_useBurner)
     {
         // get player id
-        uint8 playerId = _getCallingPlayerId(_roomId);
+        uint8 playerId = _getCallingPlayerId(_roomId, _player, _useBurner);
         require(playerId>0, "E11");
         // set player paused
         games[_roomId].playerPauseVote[playerId-1] = true;
-        emit PlayerPaused(_roomId, msg.sender);
+        emit PlayerPaused(_roomId, (_useBurner?_player:msg.sender));
+
+        // if all players voted to pause, set game paused
+        if (games[_roomId].info.playersCount == _getPlayerPauseCount(_roomId)
+            && !games[_roomId].info.gamePaused) 
+        {
+            games[_roomId].info.gamePaused = true;
+            emit GamePaused(_roomId);
+        }
+    }
+
+    function playerUnPause(uint256 _roomId, address _player, bool _useBurner) external 
+        worldFunctioning()
+        playerIsInGame(_roomId, _player, _useBurner)
+        allowedToUseBurner(_useBurner)
+    {
+        // get player id
+        uint8 playerId = _getCallingPlayerId(_roomId, _player, _useBurner);
+        require(playerId>0, "E11");
+        // set player paused
+        games[_roomId].playerPauseVote[playerId-1] = false;
+        emit PlayerUnPaused(_roomId, (_useBurner?_player:msg.sender));
+
+        // if all players voted to pause, set game paused
+        if (games[_roomId].info.playersCount != _getPlayerPauseCount(_roomId)
+        && games[_roomId].info.gamePaused
+        ) {
+            games[_roomId].info.gamePaused = false;
+            emit GameUnPaused(_roomId);
+        }
+    }
+
+    function leaveGame(uint256 _roomId) external 
+        gameNotStarted(_roomId)
+        playerIsInGame(_roomId, msg.sender, false)
+        returns (bool) 
+    {
+        // return player funds
+        msg.sender.call{value: games[_roomId].info.minStake}("");
+        // decrement player count
+        games[_roomId].info.playersCount--;
+        // get player id
+        uint8 playerId = _getCallingPlayerId(_roomId, msg.sender, false);
+        require(playerId !=0, "E12");
+
+        // set player address to 0 in playerIds
+        games[_roomId].playerIds[playerId-1] = address(0); // set player id
+        // set player FT to 0 in playerFTs
+        games[_roomId].playerFTs[playerId-1] = 0; // set player FT
+
+        // set player ready to false in playerReady
+        games[_roomId].playerReady[playerId-1] = false;
+        // set player pause vote to false in playerPauseVote
+        games[_roomId].playerPauseVote[playerId-1] = false;
+
+        // set board tile occupant to 0
+        games[_roomId].board[games[_roomId].positions[playerId-1]].occupantId = 0;
+        // remove player position
+        games[_roomId].positions[playerId-1] = type(uint8).max;
+
+        // set player not in game
+        playerInGame[msg.sender] = 0;
     }
 
     function startGame(uint256 _roomId) external payable 
@@ -478,21 +647,25 @@ contract Royale is Ownable {
         enoughPlayers(_roomId)
         allPlayersReady(_roomId)
         gameNotStarted(_roomId)
+        gameNotAbandoned(_roomId)
+        onlyGameCreator(_roomId)
     {          
         // spawn items
         _spawnItems(_roomId);
-
         emit GameStarted(_roomId);
     }
 
-    function movePlayer(uint256 _roomId, Dir _direction) external 
+    function movePlayer(uint256 _roomId, Dir _direction, address _player, bool _useBurner) external 
         worldFunctioning 
         gameStarted(_roomId)
-        playerIsInGame(_roomId)
-        playerIsAlive(_roomId)
+        playerIsInGame(_roomId, _player, _useBurner)
+        playerIsAlive(_roomId,_player, _useBurner)
+        gameNotPaused(_roomId)
+        gameNotEnded(_roomId)
+        allowedToUseBurner(_useBurner)
     {   
         // get player id
-        uint8 playerId = _getCallingPlayerId(_roomId); //already checked by playerIsInGame
+        uint8 playerId = _getCallingPlayerId(_roomId, _player, _useBurner); //already checked by playerIsInGame
         
         // get player position
         uint8 playerPosition = games[_roomId].positions[playerId-1];
@@ -526,7 +699,7 @@ contract Royale is Ownable {
             games[_roomId].board[playerPosition].occupantId = 0;
             // set player position to new position
             games[_roomId].positions[playerId-1] = newPosition;
-            emit PlayerMoved(_roomId, msg.sender, newPosition);
+            emit PlayerMoved(_roomId, (_useBurner?_player:msg.sender), newPosition);
 
         } else if (games[_roomId].board[newPosition].occupantId > 3){ 
             // if new position is occupied by item
@@ -541,10 +714,11 @@ contract Royale is Ownable {
                 // if playerNewFT is 0, set Tile occupantId to 0 else set to player id
                 if(playerNewFT == 0){
                     games[_roomId].board[newPosition].occupantId = 0;
-                    emit PlayerKilled(_roomId, msg.sender);
+                    games[_roomId].info.playersCount--; //decrement player count
+                    emit PlayerKilled(_roomId,  (_useBurner?_player:msg.sender));
                 }else{
                     games[_roomId].board[newPosition].occupantId = playerId;
-                    emit PlayerMoved(_roomId, msg.sender, newPosition);
+                    emit PlayerMoved(_roomId, (_useBurner?_player:msg.sender), newPosition);
                 }
 
                 // reduce item count
@@ -568,42 +742,36 @@ contract Royale is Ownable {
                     games[_roomId].playerAlive[occupantId-1] = false;
                     games[_roomId].info.playersCount--; // reduce playercount
                     emit PlayerKilled(_roomId, games[_roomId].playerIds[occupantId-1]);
-                    emit PlayerMoved(_roomId, msg.sender, newPosition);
+                    emit PlayerMoved(_roomId,  (_useBurner?_player:msg.sender), newPosition);
                 } else {
                     // else set player FT to 0 and set to dead
                     games[_roomId].playerFTs[playerId-1] = 0;
                     games[_roomId].playerAlive[playerId-1] = false;
                     games[_roomId].info.playersCount--; // reduce playercount
-                    emit PlayerKilled(_roomId, msg.sender);
+                    emit PlayerKilled(_roomId,  (_useBurner?_player:msg.sender));
                 }
 
         }
 
         // check if game is over then end game and distribute prize
         if (games[_roomId].info.playersCount == 1) {
-            // if game is over, set game to over
-            games[_roomId].info.gameOver = true;
-            // set game has ended
-            games[_roomId].info.hasEnded = true;
-            
-
-            // get winner address
-            for (uint8 i=0; i<games[_roomId].playerAlive.length; i++) {
-
-                if (games[_roomId].playerAlive[i] == true) {
-                    address winnerAddress = games[_roomId].playerIds[i];
-                    // emit game over event
-                    emit GameEnded(_roomId, winnerAddress);
-                    //send winner staked funds
-                    uint256 winnerFunds = games[_roomId].info.stakedFunds * (100-houseFee) / 100;
-                    (bool sent, ) = winnerAddress.call{value: winnerFunds}("");
-                    require(sent, "E16");
-                    emit RewardSent(_roomId, winnerAddress, winnerFunds);
-                    break;
-                }
-            }
+            _endGame(_roomId);
         }
 
+    }
+
+    function abandonGame(uint256 _roomId) external 
+        worldFunctioning()
+        gameNotStarted(_roomId)
+        gameNotAbandoned(_roomId)
+        onlyGameCreator(_roomId)
+        returns (bool) 
+    {
+        _returnFundsToAll(_roomId);
+        _bootAllPlayers(_roomId);
+        games[_roomId].info.gameAbandoned = true;
+        emit GameAbandoned(_roomId);
+        return true;
     }
 
 }
