@@ -103,7 +103,7 @@ contract Royale is Ownable {
     E13 - Player is dead
     E14 - Move is Out Of Bounds
     E15 - Move is Obstructed
-    E16 - Prize not sent
+    E16 - Prize not sent, Funds Not SAFU.
     E17 - Msg sender not Allowed Burner Wallet
     E18 - Game is paused
     */
@@ -250,7 +250,7 @@ contract Royale is Ownable {
                 uint256(keccak256(
                     abi.encodePacked(
                         block.timestamp, 
-                        block.difficulty,
+                        block.prevrandao,
                         _seed
                         )
                         )) % TILE_COUNT
@@ -313,14 +313,14 @@ contract Royale is Ownable {
         return true;
     }
 
-    function _getIndexDiffFromDirection(Dir _direction) internal view returns (int8){
-        if (_direction == Dir.Up) {
-            return MAP_WIDTH;
-        } else if (_direction == Dir.Down) {
-            return MAP_WIDTH * -1;
-        } else if (_direction == Dir.Left) {
+    function _getIndexDiffFromDirection(Dir _direction) internal pure returns (int8){
+        if (_direction == Dir.UP) {
+            return int8(MAP_WIDTH);
+        } else if (_direction == Dir.DOWN) {
+            return int8(MAP_WIDTH) * -1;
+        } else if (_direction == Dir.LEFT) {
             return -1;
-        } else if (_direction == Dir.Right) {
+        } else if (_direction == Dir.RIGHT) {
             return 1;
         } else {
             return 0;
@@ -329,14 +329,14 @@ contract Royale is Ownable {
 
     function _getItemFtDiff(uint8 _seed) internal view returns (int8){
         // get random number between -50 to 50
-        int8 random = int8(
+        int8 random = int8(int256(
                 uint256(keccak256(
                     abi.encodePacked(
                         block.timestamp, 
-                        block.difficulty,
+                        block.prevrandao,
                         _seed
                         )
-                        )) % 100
+                        )) % 100)
                     ) - 50;
         return random;
     }
@@ -347,7 +347,7 @@ contract Royale is Ownable {
 
         // get final ft
         int16 finalFT = int16(playerFT) + _ftDiff;
-        finalFT = finalFT < 0 ? 0 : finalFT; // if final ft is less than 0, set to 0
+        finalFT = finalFT < 0 ? int16(int8(0)) : finalFT; // if final ft is less than 0, set to 0
 
         // set player ft
         games[_roomId].playerFTs[_playerId-1] = uint16(finalFT);
@@ -372,20 +372,18 @@ contract Royale is Ownable {
         uint16 totalFT = playerFT + occupantFT;
 
         // chance of player winning is playerFT / totalFT
-        uint8 chance = _perCentDivide(uint256(playerFT), uint256(totalFT));
+        uint256 chance = _perCentDivide(uint256(playerFT), uint256(totalFT));
 
         // get random number between 1 to 100
-        uint8 random = uint8(
-                uint256(keccak256(
+        uint256 random = (uint256(keccak256(
                     abi.encodePacked(
                         block.timestamp, 
-                        block.difficulty,
+                        block.prevrandao,
                         _roomId,
                         playerId,
                         occupantId
                         )
-                        )) % 100
-                    ) + 1;
+                        )) % 100) + 1;
         
         // if random number is less than chance, player wins
         if (random <= chance) {
@@ -406,16 +404,17 @@ contract Royale is Ownable {
         // for each player
         for (uint8 i=0; i<games[_roomId].playerIds.length; i++) {
             // return funds to all players
-            games[_roomId].playerIds[i].call{value:
+            (bool sent, ) = games[_roomId].playerIds[i].call{value:
                 games[_roomId].info.minStake
             }("");
+            require(sent, "E16");
         }
         return true;
     }
 
     function _bootAllPlayers(uint256 _roomId) 
         onlyGameCreator(_roomId)
-        internal pure returns (bool) {
+        internal returns (bool) {
         // for each player
         for (uint8 i=0; i<games[_roomId].playerIds.length; i++) {
             // set playerIn Game to 0
@@ -427,7 +426,7 @@ contract Royale is Ownable {
         return true;
     }
 
-    function _endGame(uint256 _roomId) internal pure returns (bool) {
+    function _endGame(uint256 _roomId) internal returns (bool) {
         // set game has ended
         games[_roomId].info.hasEnded = true;
         
@@ -438,7 +437,7 @@ contract Royale is Ownable {
                 // emit game over event
                 emit GameEnded(_roomId, winnerAddress);
                 //send winner staked funds
-                uint256 winnerFunds = games[_roomId].info.stakedFunds * (100-houseFee) / 100;
+                uint256 winnerFunds = games[_roomId].info.totalStaked * (100-houseFee) / 100;
                 (bool sent, ) = winnerAddress.call{value: winnerFunds}("");
                 require(sent, "E16");
                 emit RewardSent(_roomId, winnerAddress, winnerFunds);
@@ -468,6 +467,7 @@ contract Royale is Ownable {
     {
         GameRoom memory game;
         game.info.gameCreator = msg.sender;
+        game.info.totalStaked = msg.value;
         game.info.playersCount = 1;
         game.info.minStake = _minStake;
         game.playerIds[0] = msg.sender;
@@ -616,7 +616,8 @@ contract Royale is Ownable {
         returns (bool) 
     {
         // return player funds
-        msg.sender.call{value: games[_roomId].info.minStake}("");
+        (bool sent, ) = msg.sender.call{value: games[_roomId].info.minStake}("");
+        require(sent, "E16");
         // decrement player count
         games[_roomId].info.playersCount--;
         // get player id
@@ -640,6 +641,8 @@ contract Royale is Ownable {
 
         // set player not in game
         playerInGame[msg.sender] = 0;
+
+        return true;
     }
 
     function startGame(uint256 _roomId) external payable 
@@ -680,11 +683,11 @@ contract Royale is Ownable {
         require(newPosition>=0 && newPosition <TILE_COUNT, "E14");
 
         // if playerPosition is at left edge of board and direction is left, revert
-        if (playerPosition % MAP_WIDTH == 0 && _direction == Dir.Left) {
+        if (playerPosition % MAP_WIDTH == 0 && _direction == Dir.LEFT) {
             require(newPosition % MAP_WIDTH != MAP_WIDTH - 1, "E14");
         }
         // if playerPosition is at right edge of board and direction is right, revert
-        if (playerPosition % MAP_WIDTH == MAP_WIDTH - 1 && _direction == Dir.Right) {
+        if (playerPosition % MAP_WIDTH == MAP_WIDTH - 1 && _direction == Dir.RIGHT) {
             require(newPosition % MAP_WIDTH != 0, "E14");
         }
 
@@ -708,6 +711,8 @@ contract Royale is Ownable {
                 uint8 itemId = games[_roomId].board[newPosition].occupantId;
                 // get item ft
                 int8 itemFT = _getItemFtDiff(newPosition);
+                // remove item position value
+                games[_roomId].positions[itemId-1] = type(uint8).max;
                 // update player ft
                 uint16 playerNewFT =_updatePlayerFT(_roomId, newPosition, playerId, itemFT);
 
@@ -722,7 +727,7 @@ contract Royale is Ownable {
                 }
 
                 // reduce item count
-                games[_roomId].itemCounts[itemId]--;
+                games[_roomId].info.itemCount--;
 
                 // spawn new items
                 _spawnItems(_roomId);
