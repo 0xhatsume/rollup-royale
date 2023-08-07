@@ -9,8 +9,9 @@ contract Royale is Ownable {
     uint8 public constant MAP_WIDTH = 10;
     uint8 public constant MAP_HEIGHT = 10;
     uint8 public constant TILE_COUNT = MAP_WIDTH * MAP_HEIGHT;
-    uint16 public constant STARTING_FT = 100;
+    uint16 public STARTING_FT = 100;
     address public burnerWallet;
+    bool public useBurnerWallet = true;
 
     event GameCreated(uint256 _roomId, address _creator);
     event GameAbandoned(uint256 _roomId); //
@@ -179,6 +180,23 @@ contract Royale is Ownable {
     }
     
     // setters
+    function setBurnerWallet(address _burnerWallet) public onlyOwner {
+        burnerWallet = _burnerWallet;
+    }
+
+    function setStartingFT(uint16 _startingFT) public onlyOwner {
+        STARTING_FT = _startingFT;
+    }
+
+    function toggleWorldPause() public onlyOwner {
+        worldPaused = !worldPaused;
+    }
+
+    function setHouseFee(uint8 _houseFee) public onlyOwner {
+        houseFee = _houseFee;
+    }
+
+    
 
     // internal utils
 
