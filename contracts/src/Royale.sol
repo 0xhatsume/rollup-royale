@@ -673,11 +673,8 @@ contract Royale is Ownable {
         // get player position
         uint8 playerPosition = games[_roomId].positions[playerId-1];
 
-        // get position difference from direction
-        int8 indexDiff = _getIndexDiffFromDirection(_direction);
-
         // get new position
-        uint8 newPosition = uint8(int8(playerPosition) + indexDiff);
+        uint8 newPosition = uint8(int8(playerPosition) + _getIndexDiffFromDirection(_direction));
 
         // revert if new position is out of bounds
         require(newPosition>=0 && newPosition <TILE_COUNT, "E14");
@@ -706,18 +703,15 @@ contract Royale is Ownable {
 
         } else if (games[_roomId].board[newPosition].occupantId > 3){ 
             // if new position is occupied by item
-            
-                // get item id
-                uint8 itemId = games[_roomId].board[newPosition].occupantId;
-                // get item ft
-                int8 itemFT = _getItemFtDiff(newPosition);
                 // remove item position value
-                games[_roomId].positions[itemId-1] = type(uint8).max;
-                // update player ft
-                uint16 playerNewFT =_updatePlayerFT(_roomId, newPosition, playerId, itemFT);
+                games[_roomId].positions[
+                    games[_roomId].board[newPosition].occupantId-1] = type(uint8).max;
 
                 // if playerNewFT is 0, set Tile occupantId to 0 else set to player id
-                if(playerNewFT == 0){
+                if(_updatePlayerFT(
+                    _roomId, newPosition, playerId, _getItemFtDiff(newPosition)
+                    ) == 0)
+                {
                     games[_roomId].board[newPosition].occupantId = 0;
                     games[_roomId].info.playersCount--; //decrement player count
                     emit PlayerKilled(_roomId,  (_useBurner?_player:msg.sender));
@@ -737,12 +731,9 @@ contract Royale is Ownable {
 
                 // get player id of occupant
                 uint8 occupantId = games[_roomId].board[newPosition].occupantId;
-                // get battle results
-                uint8 winnerId = _getBattleResults(
-                    _roomId, playerId, occupantId);
 
                 // if winnerId is playerId, set Occupan FT to 0 and set to dead
-                if (winnerId == playerId) {
+                if (_getBattleResults(_roomId, playerId, occupantId) == playerId) {
                     games[_roomId].playerFTs[occupantId-1] = 0;
                     games[_roomId].playerAlive[occupantId-1] = false;
                     games[_roomId].info.playersCount--; // reduce playercount
