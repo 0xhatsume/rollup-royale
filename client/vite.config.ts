@@ -7,7 +7,6 @@ export default defineConfig({
     port: 3000,
     watch: {
       usePolling: true,
-      interval: 10,
     },
     fs: {
       strict: true,

@@ -34,7 +34,12 @@ export default {
 
 
     },
-    extend: {},
+    extend: {
+      fontFamily: {
+        knife: ['knife'],
+      },
+
+    },
   },
   plugins: [
     require('flowbite/plugin'),
