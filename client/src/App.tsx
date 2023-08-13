@@ -16,7 +16,13 @@ function App() {
         flex flex-col min-h-screen
         '>
           <Navbar/>
-          hello
+          <div className="w-full md:w-[768px] mx-auto
+            p-2
+            border-2 border-red-700
+            h-fit
+          ">
+            Hello World
+            </div>
         </main>
     </>
   )

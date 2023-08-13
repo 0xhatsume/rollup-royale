@@ -18,7 +18,7 @@ const CustomNavBar = () => {
             
             <div className="flex md:order-2">
                 <ConnectWalletButton/>
-                <Navbar.Toggle className="hover:bg-prime2" />
+                <Navbar.Toggle className="fill-current text-prime2 hover:bg-prime2 hover:text-white" />
             </div>
 
             {/* <Navbar.Collapse>
