@@ -1,9 +1,11 @@
 import Navbar from './components/Navbar/Navbar';
+import ConnectWalletButton from './components/ConnectWalletButton/CWButton';
 
 function App() {
 
   return (
     <>
+    
       <main className='
         bg-[#34222E]
         sm:bg-red-400 
@@ -13,7 +15,7 @@ function App() {
         2xl:bg-blue-400
         flex flex-col min-h-screen
         '>
-          <Navbar />
+          <Navbar/>
           hello
         </main>
     </>
