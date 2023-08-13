@@ -8,14 +8,17 @@ const CustomNavBar = () => {
             <Navbar.Brand href={import.meta.env.VITE_HOSTSITE || "localhost:3000"}>
                 <img
                     alt="Loot Royale Logo"
-                    className="mr-3 h-fit"
-                    src="lootroyalelogo.jpg"
+                    className="mr-3 h-20 fill-prime2"
+                    src="brownlogo.jpg"
                 />
+                <span className="text-3xl italic
+                    font-bold text-prime2">
+                    Loot Royale</span>
                 </Navbar.Brand>
             
             <div className="flex md:order-2">
                 <ConnectWalletButton/>
-                <Navbar.Toggle className="hover:bg-green-400" />
+                <Navbar.Toggle className="hover:bg-prime2" />
             </div>
 
             {/* <Navbar.Collapse>
