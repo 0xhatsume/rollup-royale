@@ -4,14 +4,14 @@ import ConnectWalletButton from '../ConnectWalletButton/CWButton';
 
 const CustomNavBar = () => {
     return (
-        <Navbar className='bg-background1'>
+        <Navbar className='bg-background1 fixed w-full z-20 top-0 left-0 py-0'>
             <Navbar.Brand href={import.meta.env.VITE_HOSTSITE || "localhost:3000"}>
                 <img
                     alt="Loot Royale Logo"
                     className="mr-3 h-20 fill-prime2"
                     src="brownlogo.jpg"
                 />
-                <span className="text-3xl italic
+                <span className="text-2xl italic sm:text-3xl
                     font-bold text-prime2">
                     Loot Royale</span>
                 </Navbar.Brand>
