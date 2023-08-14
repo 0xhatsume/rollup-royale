@@ -1,6 +1,7 @@
 //import React from 'react';
 import { Navbar } from 'flowbite-react';
 import ConnectWalletButton from '../ConnectWalletButton/CWButton';
+//import {VscFeedback} from 'react-icons/vsc';
 
 const CustomNavBar = () => {
     return (
@@ -16,33 +17,24 @@ const CustomNavBar = () => {
                     Loot Royale</span>
                 </Navbar.Brand>
             
-            <div className="flex md:order-2">
+            <Navbar.Collapse className="ml-auto mr-2">
+                <Navbar.Link href="#">
+                    <div className="
+                        text-prime2 md:text-background1
+                        md:bg-lightbeige
+                        font-medium md:rounded-lg text-sm md:text-base
+                        md:px-4 md:py-2 md:text-center
+                        md:hover:bg-darkbeige
+                        ">
+                        Game Rules</div>
+                </Navbar.Link>
+            </Navbar.Collapse>
+            <div className="flex">
                 <ConnectWalletButton/>
                 <Navbar.Toggle className="fill-current text-prime2 hover:bg-prime2 hover:text-white" />
             </div>
 
-            {/* <Navbar.Collapse>
-                <Navbar.Link
-                active
-                href="#"
-                >
-                <p>
-                    Home
-                </p>
-                </Navbar.Link>
-                <Navbar.Link href="#">
-                About
-                </Navbar.Link>
-                <Navbar.Link href="#">
-                Services
-                </Navbar.Link>
-                <Navbar.Link href="#">
-                Pricing
-                </Navbar.Link>
-                <Navbar.Link href="#">
-                Contact
-                </Navbar.Link>
-            </Navbar.Collapse> */}
+            
             
         </Navbar>
     )
