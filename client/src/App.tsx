@@ -3,6 +3,7 @@ import Footer from './components/Footer/Footer';
 //import LobbyTable from './components/LobbyTable/LobbyTable';
 import LobbyTable from './components/LobbyTable/LobbyTableManual';
 import TableBrowserPanel from './components/LobbyTable/TableBrowserPanel';
+import ChatWindow from './components/ChatWindow/ChatWindow';
 
 function App() {
 
@@ -17,7 +18,6 @@ function App() {
           xl:bg-green-300
           2xl:bg-background1
           flex flex-col min-h-screen
-
           pt-[88px]
           '>
             
@@ -28,6 +28,12 @@ function App() {
             ">
               <LobbyTable/>
               <TableBrowserPanel />
+              <div className="border-prime2 border
+              h-1/3 min-h-[240px] mt-1
+              rounded-b-lg
+              ">
+                <ChatWindow />
+              </div>
               </div>
 
           </main>

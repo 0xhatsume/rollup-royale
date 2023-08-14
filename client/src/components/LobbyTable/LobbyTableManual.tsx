@@ -36,7 +36,7 @@ const TableRow = () => {
 const LobbyTableManual = () => {
     return (
         <div className="relative shadow-md 
-        overflow-y-auto  h-[360px]
+        overflow-y-auto  h-[300px]
         bg-lightbeige
         border-prime2 rounded-lg border-2
         ">
@@ -73,7 +73,6 @@ const LobbyTableManual = () => {
                     </tr>
                 </thead>
                 <tbody className="divide-y">
-                    <TableRow/>
                     <TableRow/>
                     <TableRow/>
                     <TableRow/>
