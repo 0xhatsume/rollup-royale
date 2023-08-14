@@ -56,7 +56,7 @@ const LobbyTableManual = () => {
                     bg-greygreen
                     ">
                         <th scope="col" className="pl-4 pr-3 py-3">
-                            Creator
+                            Room Owner
                         </th>
                         <th scope="col" className="px-6 py-3">
                             Stake (ETH)

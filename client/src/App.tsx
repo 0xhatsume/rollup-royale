@@ -2,6 +2,7 @@ import Navbar from './components/Navbar/Navbar';
 import Footer from './components/Footer/Footer';
 //import LobbyTable from './components/LobbyTable/LobbyTable';
 import LobbyTable from './components/LobbyTable/LobbyTableManual';
+import TableBrowserPanel from './components/LobbyTable/TableBrowserPanel';
 
 function App() {
 
@@ -21,10 +22,12 @@ function App() {
           '>
             
             <div className="w-full md:w-[768px] mx-auto
+              flex flex-col
               p-0 h-screen
               border-2 border-red-700
             ">
               <LobbyTable/>
+              <TableBrowserPanel />
               </div>
 
           </main>
