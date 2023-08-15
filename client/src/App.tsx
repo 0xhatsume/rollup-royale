@@ -1,15 +1,15 @@
 import Navbar from './components/Navbar/Navbar';
 import Footer from './components/Footer/Footer';
 //import LobbyTable from './components/LobbyTable/LobbyTable';
-import LobbyTable from './components/LobbyTable/LobbyTableManual';
-import TableBrowserPanel from './components/LobbyTable/TableBrowserPanel';
-import ChatWindow from './components/ChatWindow/ChatWindow';
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Lobby from './pages/Lobby';
+import GameRoom from './pages/GameRoom';
 
 function App() {
 
   return (
-    <>  
-        <Navbar/>
+    <>
+      <Navbar/>
         <main className='
           bg-[#34222E]
           sm:bg-red-400 
@@ -20,23 +20,14 @@ function App() {
           flex flex-col min-h-screen
           pt-[88px]
           '>
-            
-            <div className="w-full md:w-[768px] mx-auto
-              flex flex-col
-              p-0 h-screen
-            ">
-              <LobbyTable/>
-              <TableBrowserPanel />
-              <div className="
-                h-1/3 min-h-[240px] mt-1
-                rounded-b-lg
-              ">
-                <ChatWindow room="lobby1" msgLimit={100} />
-              </div>
-              </div>
-
+          <Router>
+              <Routes>
+                <Route path='/' element={<Lobby/>}/>
+                <Route path="/game/:id" element={<GameRoom />} />
+              </Routes>
+            </Router>
           </main>
-        <Footer />
+      <Footer />
     </>
   )
 }

@@ -10,7 +10,7 @@ const CustomNavBar = () => {
                 <img
                     alt="Loot Royale Logo"
                     className="mr-3 h-20 fill-prime2"
-                    src="brownlogo.jpg"
+                    src="/brownlogo.jpg"
                 />
                 <span className="text-2xl italic sm:text-3xl
                     font-bold text-prime2">
