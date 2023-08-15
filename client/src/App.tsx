@@ -24,15 +24,14 @@ function App() {
             <div className="w-full md:w-[768px] mx-auto
               flex flex-col
               p-0 h-screen
-              border-2 border-red-700
             ">
               <LobbyTable/>
               <TableBrowserPanel />
-              <div className="border-prime2 border
-              h-1/3 min-h-[240px] mt-1
-              rounded-b-lg
+              <div className="
+                h-1/3 min-h-[240px] mt-1
+                rounded-b-lg
               ">
-                <ChatWindow />
+                <ChatWindow room="lobby1" msgLimit={100} />
               </div>
               </div>
 

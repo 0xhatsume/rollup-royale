@@ -1,125 +1,200 @@
-import React from 'react';
+import React, {useEffect, useRef} from 'react';
+import { db } from '../../config/firebase.config';
+import { addDoc, collection, serverTimestamp, FieldValue,
+    onSnapshot, query, where, orderBy, limitToLast } from 'firebase/firestore';
 import DebouncedInput from './DebouncedInput';
+import { addressShortener } from '../../utils/addressShortener';
+
+import { useAccount } from 'wagmi';
 
 interface Message {
     text: string;
-    sentBy: string;
-    sentAt: Date;
-    isChatOwner?: boolean;
+    createdAt: FieldValue;
+    room: string;
+    user: string;
 }
 
 interface ChatInputBoxProps {
     sendANewMessage: (message: Message) => void;
+    room: string;
 }
 
-export const ChatInputBox = ({ sendANewMessage }: ChatInputBoxProps) => {
+export const ChatInputBox = ({ sendANewMessage, room }: ChatInputBoxProps) => {
     const [newMessage, setNewMessage] = React.useState("");
-    
-        /**
-         * Send message handler
-         * Should empty text field after sent
-         */
-        const doSendMessage = () => {
-            if (newMessage && newMessage.length > 0) {
-                const newMessagePayload: Message = {
-                sentAt: new Date(),
-                sentBy: "walletAddress",
-                isChatOwner: true,
-                text: newMessage
-                };
-                sendANewMessage(newMessagePayload);
-                setNewMessage("");
-            }
-        };
-    
-        return (
-            <div className="flex-grow w-full
-                flex flex-row p-1 items-center
-                border-prime2 border rounded-md
-                overflow-hidden
-                mt-1">
-                    <DebouncedInput
-                        value={newMessage ?? ""}
-                        debounce={100}
-                        onChange={(value) => setNewMessage(String(value))}
-                    />
-                    <button
-                        type="button"
-                        disabled={!newMessage || newMessage.length === 0}
-                        className="px-3 py-2 text-xs font-medium 
-                        text-center text-white 
-                        ml-2 mr-1
-                        bg-prime1 rounded-lg 
-                        hover:bg-prime2 
-                        focus:ring-4 focus:outline-none focus:ring-palered/70 disabled:opacity-50"
-                        onClick={() => doSendMessage()}
-                    >
-                        Send
-                    </button>
-            </div>
-        );
-}
+    const { address } = useAccount();
+    /**
+     * Send message handler
+     * Should empty text field after sent
+     */
+    // const doSendMessage = async () => {
+    //     if (newMessage && newMessage.length > 0) {
+    //         const newMessagePayload: Message = {
+    //             text: newMessage,
+    //             createdAt: serverTimestamp(),
+    //             room: room,
+    //             user: address??"anon-user88",
+    //         };
+    //         await sendANewMessage(newMessagePayload);
+    //         setNewMessage("");
+    //     }
+    // };
 
-interface ChatContentProps {
-    messages: Message[];
-}
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (newMessage && newMessage.length > 0) {
+            const newMessagePayload: Message = {
+                text: newMessage,
+                createdAt: serverTimestamp(),
+                room: room,
+                user: address??"anon-user88",
+            };
+            await sendANewMessage(newMessagePayload);
+            setNewMessage("");
+        }
+    }
 
-export const ChatContent = ({ messages }: ChatContentProps) => {
     return (
-        <div className="
-            py-1 px-2
-            h-4/5 max-h-4/5 bg-black/20 
-            overflow-y-scroll
-            overflow-auto
-            ">
-            {messages.map((message: Message, index: number) => (
-            <div
-                key={index}
-                className={`py-2 flex flex-row w-full ${
-                message.isChatOwner ? "justify-end" : "justify-start"
-                }`}
+        <form className="flex-grow w-full
+            flex flex-row p-1 items-center
+            border-prime2 border rounded-md
+            overflow-hidden
+            mt-1"
+            onSubmit={handleSubmit}
             >
-                <div className={`${message.isChatOwner ? "order-2" : "order-1"}`}>
-                    {`[${message.sentBy}]`}
-                </div>
-
-                <div
-                className={`px-2 w-fit flex flex-row bg-palered rounded-lg text-white ${
-                    message.isChatOwner ? "order-1 mr-2" : "order-2 ml-2"
-                }`}
+                <DebouncedInput
+                    value={newMessage ?? ""}
+                    debounce={100}
+                    onChange={(value) => setNewMessage(String(value))}
+                />
+                <button
+                    type="submit"
+                    //onClick={() => doSendMessage()}
+                    disabled={!newMessage || newMessage.length === 0}
+                    className="px-3 py-2 text-xs font-medium 
+                    text-center text-white 
+                    ml-2 mr-1
+                    bg-prime1 rounded-lg 
+                    hover:bg-prime2 
+                    focus:ring-4 focus:outline-none focus:ring-palered/70 disabled:opacity-50"
                 >
-                <span className="text-xs text-gray-200">
-                    {new Date(message.sentAt).toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit"
-                    })}
-                </span>
-                    <span className="text-md">{message.text}</span>
-                </div>
-            </div>
-            ))}
-        </div>
+                    Send
+                </button>
+        </form>
     );
-};
+}
 
-const ChatWindow = () => {
+// interface ChatContentProps {
+//     messages: Message[];
+// }
+
+const ChatWindow = ({room, msgLimit }: {room: string, msgLimit: number}) => {
+
+    const { address } = useAccount();
+    const messageRef = collection(db, "messages");
+    const chatBoxRef = useRef<HTMLDivElement>(null);
+
     /** State to control new messages */
     const [chatMessages, setChatMessages] = React.useState<Message[]>([]);
-    //const [chatMessages, setChatMessages] = React.useState<Message[]>(data);
+
+    useEffect(() => {
+        try {
+            const queryMessages = msgLimit>0 ? query(messageRef, 
+                where("room", "==", room),
+                orderBy("createdAt", "desc"),
+                limitToLast(msgLimit)
+                )
+                :
+                query(messageRef,
+                    where("room", "==", room),
+                    orderBy("createdAt", "desc")
+                )
+                ;
+            const unsuscribe = onSnapshot(queryMessages, (snapshot) => {
+                let messages:Message[] = [];
+                snapshot.forEach((doc) => {
+                messages.push({...doc.data()} as Message);
+                });
+                setChatMessages(messages);
+                
+            });
+
+            return () => unsuscribe();
+
+        } catch (error) {
+            console.log(error)
+            setChatMessages([...chatMessages, {
+                text: "error in chat backend",
+                createdAt: serverTimestamp(),
+                room: room,
+                user: "error",
+            }])
+        }
+    }, [])
+    
+    const sendANewMessage = async (message: Message) => {
+        //setChatMessages((prevMessages) => [...prevMessages, message]);
+        if (message.text === "") return;
+        await addDoc(messageRef, message);
+    };
+
+    useEffect(() => {
+        if(chatBoxRef.current){
+            chatBoxRef.current.scrollTop = 0;
+        }
+    }, [chatMessages, chatBoxRef])
 
     return (
         <div className="h-full w-full
         bg-black/20
         flex flex-col
         py-2 px-2
+        border border-prime2 rounded-b-lg
         "
         >
 
             {/* message window */}
-            <ChatContent messages={chatMessages}/>
+            <div className="
+                    py-1 px-2
+                    h-4/5 max-h-4/5 bg-black/20 
+                    overflow-y-auto
+                    flex flex-col-reverse justify-start
+                    "
+                    ref={chatBoxRef}
+                    >
+                    {chatMessages.map((message: Message, index: number) => (
+                    <div
+                        key={index}
+                        className={`my-0 py-0 flex flex-row w-full ${
+                        message.user == address??"anon-user88" ? "justify-end" : "justify-start"
+                        }`}
+                    >   
+
+                        {/* user address */}
+                        <div className={`
+                        text-xs sm:text-sm md:text-base
+                        ${message.user == address??"anon-user88" ? 
+                        "order-2 text-prime2" : "order-1 text-lightbeige"}`}>
+                            {`[${addressShortener(message.user)}]`}
+                        </div>
+
+                        {/* text content */}
+                        <div
+                        className={`px-2 w-fit flex flex-row text-white 
+                        whitespace-normal 
+                        ${
+                            message.user == address??"anon-user88" ? "order-1 mr-2" : "order-2 ml-2"
+                        }`}
+                        >
+                            <span className="text-xs sm:text-sm md:text-base
+                            whitespace-normal 
+                            ">{message.text}</span>
+                        </div>
+                    </div>
+                    ))}
+                </div>
 
             {/* message input */}
-            <ChatInputBox sendANewMessage={()=>{}}/>
+            <ChatInputBox sendANewMessage={sendANewMessage} room={room}/>
 
         </div>
     )
