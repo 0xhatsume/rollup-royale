@@ -14,7 +14,7 @@ const TableBrowserPanel = () => {
                 text-white font-semibold
                 bg-prime1
                 border-orange-500 rounded-lg
-                h-full w-[8rem] sm:w-auto mx-2 md:mr-7
+                h-full w-[8rem] sm:w-auto mx-0 md:mr-7
                 align-middle
                 hover:bg-prime2 hover:text-white
                 focus:ring-palegreen focus:border-palegreen

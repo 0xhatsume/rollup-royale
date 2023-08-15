@@ -22,6 +22,7 @@ interface ChatInputBoxProps {
 export const ChatInputBox = ({ sendANewMessage, room }: ChatInputBoxProps) => {
     const [newMessage, setNewMessage] = React.useState("");
     const { address } = useAccount();
+    const {isConnected} = useAccount();
     /**
      * Send message handler
      * Should empty text field after sent
@@ -64,7 +65,7 @@ export const ChatInputBox = ({ sendANewMessage, room }: ChatInputBoxProps) => {
                 <DebouncedInput
                     value={newMessage ?? ""}
                     debounce={100}
-                    onChange={(value) => setNewMessage(String(value))}
+                    onChange={(value) => isConnected?setNewMessage(String(value)):null}
                 />
                 <button
                     type="submit"
@@ -154,38 +155,39 @@ const ChatWindow = ({room, msgLimit }: {room: string, msgLimit: number}) => {
 
             {/* message window */}
             <div className="
-                    py-1 px-2
+                    py-1 px-2 w-auto
                     h-4/5 max-h-4/5 bg-black/20 
                     overflow-y-auto
                     flex flex-col-reverse justify-start
+                    
                     "
                     ref={chatBoxRef}
                     >
                     {chatMessages.map((message: Message, index: number) => (
                     <div
                         key={index}
-                        className={`my-0 py-0 flex flex-row w-full ${
-                        message.user == address??"anon-user88" ? "justify-end" : "justify-start"
-                        }`}
+                        className={`my-0 py-0 flex flex-row w-full 
+                        justify-start items-start}
+                        mt-2
+                        `}
                     >   
 
                         {/* user address */}
                         <div className={`
-                        text-xs sm:text-sm md:text-base
+                        text-xs sm:text-sm md:text-base order-1
                         ${message.user == address??"anon-user88" ? 
-                        "order-2 text-prime2" : "order-1 text-lightbeige"}`}>
-                            {`[${addressShortener(message.user)}]`}
+                        "text-prime2" : "text-lightbeige"}`}>
+                            {`[${addressShortener(message.user)}]: `}
                         </div>
 
                         {/* text content */}
                         <div
-                        className={`px-2 w-fit flex flex-row text-white 
-                        whitespace-normal break-words text-xs sm:text-sm md:text-base
-                        ${
-                            message.user == address??"anon-user88" ? "order-1 mr-2" : "order-2 ml-2"
-                        }`}
-                        >
-                        {message.text}
+                        className={`px-2 flex flex-row 
+                        justify-start items-start
+                        text-white 
+                        whitespace-normal break-all order-2
+                        sm:text-sm md:text-base ml-0`}
+                        >{message.text}
                         </div>
                     </div>
                     ))}

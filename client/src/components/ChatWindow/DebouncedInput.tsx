@@ -44,15 +44,18 @@ const DebouncedInput = ({
                     <AiOutlineSend className="mx-1 text-prime2" aria-hidden="true" />
                 </div>
                 <input
-                    className="w-full block p-1.5 pl-10 text-sm text-prime2 border 
+                    className={`w-full block p-1.5 pl-10 text-sm text-prime2 border 
                             border-prime2 rounded-lg bg-black/20
-                                focus:ring-1 focus:ring-prime1 focus:border-prime1"
+                                focus:ring-1 focus:ring-prime1 focus:border-prime1
+                                ${isConnected? "":"placeholder:text-alertred1 font-semibold"}
+                                `}
                     maxLength={250}
                     id="message-box"
 
                     {...props}
                     onChange={(e) => setValue(e.target.value)}
                     value={value}
+                    disabled={!isConnected}
                     placeholder={isConnected?"Type a message... (max 250words)":"Pls connect wallet to chat."}
                 />
             </div>
