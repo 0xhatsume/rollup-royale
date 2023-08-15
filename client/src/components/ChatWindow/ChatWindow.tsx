@@ -180,14 +180,12 @@ const ChatWindow = ({room, msgLimit }: {room: string, msgLimit: number}) => {
                         {/* text content */}
                         <div
                         className={`px-2 w-fit flex flex-row text-white 
-                        whitespace-normal 
+                        whitespace-normal break-words text-xs sm:text-sm md:text-base
                         ${
                             message.user == address??"anon-user88" ? "order-1 mr-2" : "order-2 ml-2"
                         }`}
                         >
-                            <span className="text-xs sm:text-sm md:text-base
-                            whitespace-normal 
-                            ">{message.text}</span>
+                        {message.text}
                         </div>
                     </div>
                     ))}

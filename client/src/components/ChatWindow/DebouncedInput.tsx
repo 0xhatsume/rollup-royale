@@ -1,12 +1,12 @@
 import React, {useEffect} from "react";
 import {AiOutlineSend} from "react-icons/ai";
+import { useAccount } from 'wagmi';
 
 interface DebouncedInputProps {
     value: string | number;
     onChange: (value: string | number) => void;
     debounce?: number;
 }
-
     /**
      *
      * @param param0
@@ -23,6 +23,7 @@ const DebouncedInput = ({
         Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange">) => {
     
     const [value, setValue] = React.useState(initialValue);
+    const {isConnected}=useAccount();
 
     useEffect(() => {
         setValue(initialValue);
@@ -43,19 +44,16 @@ const DebouncedInput = ({
                     <AiOutlineSend className="mx-1 text-prime2" aria-hidden="true" />
                 </div>
                 <input
-                    type="text"
-
                     className="w-full block p-1.5 pl-10 text-sm text-prime2 border 
                             border-prime2 rounded-lg bg-black/20
                                 focus:ring-1 focus:ring-prime1 focus:border-prime1"
-                    
+                    maxLength={250}
                     id="message-box"
 
                     {...props}
-
-                    value={value}
-
                     onChange={(e) => setValue(e.target.value)}
+                    value={value}
+                    placeholder={isConnected?"Type a message... (max 250words)":"Pls connect wallet to chat."}
                 />
             </div>
         </>
