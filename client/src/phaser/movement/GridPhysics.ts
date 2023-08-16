@@ -57,6 +57,8 @@ export class GridPhysics {
     }
 
     private startMoving(direction: Direction): void {
+        console.log('startMoving')
+        console.log(this.player.entity + '-walk-' + this.directionToKey(direction))
         this.player.anims.play(
             this.player.entity + '-walk-' + this.directionToKey(direction)
             );
@@ -66,7 +68,8 @@ export class GridPhysics {
 
     private updatePlayerPosition(delta: number) {
         const pixelsToWalkThisUpdate = this.getPixelsToWalkThisUpdate(delta);
-
+        console.log('delta: ' + delta)
+        console.log('pixelsToWalkThisUpdate: ' + pixelsToWalkThisUpdate)
         if (!this.willCrossTileBorderThisUpdate(pixelsToWalkThisUpdate)) {
             this.movePlayerSprite(pixelsToWalkThisUpdate);
         } else if (this.shouldContinueMoving()) {
@@ -91,12 +94,26 @@ export class GridPhysics {
 
     private movePlayerSprite(pixelsToMove: number) {
         const directionVec = this.movementDirectionVectors[this.movementDirection].clone();
+        console.log('directionVec')
+        console.log(directionVec)
         const movementDistance = directionVec.multiply(new Vector2(pixelsToMove));
-        const newPlayerPos = this.player.getPosition().add(movementDistance);
-        this.player.setPosition(newPlayerPos);
+        console.log('movementDistance')
+        console.log(movementDistance)
+        
+        const newX = this.player.getPosition().x + movementDistance.x
+        const newY = (this.player.getPosition().y - 
+        (GameScene.TILE_SIZE*GameScene.SCALEFACTOR) + movementDistance.y)
 
+        //const newPlayerPos = this.player.getPosition().add(movementDistance);
+        console.log('new X: '+ newX)
+        console.log('new Y: '+ newY)
+        //console.log('newPlayerPos: ' + newPlayerPos.x + ', ' + newPlayerPos.y)
+        this.player.setPosition(newX,newY);
+
+        console.log(this.player.getPosition())
         this.tileSizePixelsWalked += pixelsToMove;
         this.tileSizePixelsWalked %= (GameScene.TILE_SIZE*GameScene.SCALEFACTOR);
+        console.log('tileSizePixelsWalked: ' + this.tileSizePixelsWalked)
     }
 
     private getPixelsToWalkThisUpdate(delta: number): number {

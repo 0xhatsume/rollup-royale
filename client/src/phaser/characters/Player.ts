@@ -34,6 +34,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     private offsetX = (GameScene.TILE_SIZE/ 2)*GameScene.SCALEFACTOR;
     private offsetY = GameScene.TILE_SIZE*GameScene.SCALEFACTOR; 
     private bodyOffset = 0//GameScene.TILE_SIZE/4 * GameScene.SCALEFACTOR// 4px from bottom of sprite (half of half of body)
+    //static readonly inherentYoffset=GameScene.TILE_SIZE*GameScene.SCALEFACTOR; 
     entity: string
 
     constructor(scene: Phaser.Scene, x: number, y: number, 
@@ -42,7 +43,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         
         super(scene, x, y, texture, frame);
         //this.setOrigin(0.5, 1);
-
         // scene.add.existing(this);
         // scene.physics.add.existing(this);
 
@@ -64,7 +64,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         this.tilePos = new Phaser.Math.Vector2(x, y);
         this.entity = entity;
         this.setDepth(3);
-        this.anims.play('player1-walk-down');   
+        this.anims.play(this.entity+'-idle-down');
+        console.log('player position at:'+ this.getPosition().x + ', ' + this.getPosition().y)
     }
 
     // preUpdate(t:number, dt:number) {
@@ -95,10 +96,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     // }
     
     stopAnimation(direction: Direction) {
-        const animationManager = this.anims.animationManager;
-        const standingFrame = animationManager.get(direction).frames[1].frame.name;
-        this.anims.stop();
-        this.setFrame(standingFrame);
+        // const animationManager = this.anims.animationManager;
+        // const standingFrame = animationManager.get(direction).frames[1].frame.name;
+        // this.anims.stop();
+        // this.setFrame(standingFrame);
+        this.anims.play(this.entity+'-idle-down');
     }
     
     startAnimation(direction: Direction) {
@@ -111,6 +113,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     
     setTilePos(tilePosition: Phaser.Math.Vector2): void {
         this.tilePos = tilePosition.clone();
+        console.log('player tile set to: '+ this.tilePos.x + ', ' + this.tilePos.y)
     }
 
 }

@@ -3,10 +3,12 @@ import { createPlayerAnims} from './anims/CreateAnims';
 import Player from './characters/Player';
 import './characters/Player'; //as typing
 import { GridControls } from './movement/GridControls';
+import { GridPhysics } from './movement/GridPhysics';
 
 class GameSceneFlat extends Phaser.Scene {
     private player1!: Player
     private gridControls!: GridControls
+    private gridPhysics!: GridPhysics
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
     private scalefactor : number = 3
     static readonly SCALEFACTOR = 3;
@@ -36,15 +38,17 @@ class GameSceneFlat extends Phaser.Scene {
         ground.scale = this.scalefactor
 
         this.player1 = this.add.player(
-            9,0, 'hs-cyan', 'tile000.png', 'player1')
+            1,1, 'hs-cyan', 'tile000.png', 'player1')
         this.player1.scale = this.scalefactor
         
-        this.gridControls = new GridControls(this.player1)
-        console.log(Phaser.Math.Vector2.DOWN)
+        this.gridPhysics = new GridPhysics(this.player1, map)
+        this.gridControls = new GridControls(this.gridPhysics)
+        //console.log(Phaser.Math.Vector2.DOWN)
     }
 
     update(t:number, dt:number){
         this.gridControls.update(this.cursors)
+        this.gridPhysics.update(dt)
     }
 
 }
