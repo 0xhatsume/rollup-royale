@@ -9,6 +9,9 @@ const GameRoom = () => {
       type: Phaser.AUTO,
       parent: "phaser-div",
       backgroundColor: '#34222E',
+      render: {
+        antialias: false,
+      },
       scale:{
           //width: 600,
           //height: 600,

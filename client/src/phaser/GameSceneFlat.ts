@@ -2,12 +2,19 @@ import Phaser from 'phaser';
 import { createPlayerAnims} from './anims/CreateAnims';
 import Player from './characters/Player';
 import './characters/Player'; //as typing
+import { GridControls } from './movement/GridControls';
 
 class GameSceneFlat extends Phaser.Scene {
-    private player1!: Player;
+    private player1!: Player
+    private gridControls!: GridControls
+    private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
+    private scalefactor : number = 3
+    static readonly SCALEFACTOR = 3;
+    static readonly TILE_SIZE = 16;
 
     constructor(){
         super('GameSceneFlat')
+        this.scalefactor = GameSceneFlat.SCALEFACTOR
     }
 
     preload(){
@@ -15,6 +22,7 @@ class GameSceneFlat extends Phaser.Scene {
         this.load.tilemapTiledJSON('map10by10', '/maps/lr10by10.json')
 
         this.load.atlas('hs-cyan','/characters/hscyan.png', '/characters/hscyan.json')
+        this.cursors= this.input.keyboard.createCursorKeys()
     }
 
     create(){
@@ -23,22 +31,21 @@ class GameSceneFlat extends Phaser.Scene {
         const tileset = map.addTilesetImage('Pixelarium', 'tiles')
 
         const ground = map.createLayer('ground', tileset as Phaser.Tilemaps.Tileset,
-        32, 32
+        GameSceneFlat.TILE_SIZE*this.scalefactor, GameSceneFlat.TILE_SIZE*this.scalefactor
         )
-        ground.scale = 3
+        ground.scale = this.scalefactor
 
-        // the y-origin of the sprite is at its body's center
-        // the x-origin is left of the sprite's body (so we need to shift by 32)
-        // center of 1 tile of 16px and scale of 3 is 16/2 * 3 = 24
-        // moving 1 tile is 16px * 3 = 48px
         this.player1 = this.add.player(
-            32+(8*3)+(16*3),48, 'hs-cyan', 'tile000.png', 'player1')
-        this.player1.scale = 3
-
+            9,0, 'hs-cyan', 'tile000.png', 'player1')
+        this.player1.scale = this.scalefactor
         
+        this.gridControls = new GridControls(this.player1)
+        console.log(Phaser.Math.Vector2.DOWN)
     }
 
-
+    update(t:number, dt:number){
+        this.gridControls.update(this.cursors)
+    }
 
 }
 

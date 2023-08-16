@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import GameScene from '../GameSceneFlat';
 
 declare global
 {
@@ -13,27 +14,105 @@ declare global
 	}
 }
 
-enum Direction
+export enum Direction
     {
-        DOWN, LEFT, UP, RIGHT  //using numpad 0, 1, 2, 3
+        DOWN="down", 
+        LEFT="left", 
+        UP="up", 
+        RIGHT="right", 
+        NONE = "none"
+        //using numpad 0, 1, 2, 3, 4
     }
 
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     private direction: Direction = Direction.DOWN;
+    private tilePos: Phaser.Math.Vector2
+    private originXoffset = GameScene.TILE_SIZE*GameScene.SCALEFACTOR;
+    private originYoffset = GameScene.TILE_SIZE*GameScene.SCALEFACTOR;
+    private offsetX = (GameScene.TILE_SIZE/ 2)*GameScene.SCALEFACTOR;
+    private offsetY = GameScene.TILE_SIZE*GameScene.SCALEFACTOR; 
+    private bodyOffset = 0//GameScene.TILE_SIZE/4 * GameScene.SCALEFACTOR// 4px from bottom of sprite (half of half of body)
+    entity: string
 
     constructor(scene: Phaser.Scene, x: number, y: number, 
         texture: string, frame: string | number, entity: string) {
+        
+        
         super(scene, x, y, texture, frame);
+        //this.setOrigin(0.5, 1);
+
         // scene.add.existing(this);
         // scene.physics.add.existing(this);
-        this.anims.play('player1-idle-down');   
+
+        // the y-origin of the sprite is at its body's center (48px from bottom of sprite)
+        // the x-origin is center of sprite (24px from left of sprite)
+        // center of 1 tile of 16px and scale of 3 is 16/2 * 3 = 24
+        // moving 1 tile is 16px * 3 = 48px
+        // with scale of 3, player at 0,0 is at 0,48 (bottomCenter)
+        this.setPosition(
+            this.originXoffset + this.offsetX + (
+                x * GameScene.TILE_SIZE* GameScene.SCALEFACTOR),
+            
+            //originYoffset + offsetY
+            this.originYoffset + this.bodyOffset + (
+                y * GameScene.TILE_SIZE* GameScene.SCALEFACTOR),
+            
+            //0,0
+        );
+        this.tilePos = new Phaser.Math.Vector2(x, y);
+        this.entity = entity;
+        this.setDepth(3);
+        this.anims.play('player1-walk-down');   
     }
 
     // preUpdate(t:number, dt:number) {
     //     super.preUpdate(t, dt);
     // }
+
+    getPosition(): Phaser.Math.Vector2 {
+        return this.getBottomCenter();
+    }
+
+    getCurrentGridPosition(): Phaser.Math.Vector2 {
+        const currentVector = this.getPosition();
+        const currentX = currentVector.x;
+        const currentY = currentVector.y;
+
+        const gridX = Math.floor(
+            ((currentX-this.originXoffset-this.offsetX) / (GameScene.TILE_SIZE* GameScene.SCALEFACTOR)));
+        const gridY = Math.floor(
+            ((currentY-this.originYoffset-this.offsetY-this.bodyOffset
+                ) / (GameScene.TILE_SIZE* GameScene.SCALEFACTOR)));
+        console.log(gridX)
+        return new Phaser.Math.Vector2(gridX, gridY);
+    }
+
+    //already available
+    // setPosition(position: Phaser.Math.Vector2): void {
+    //     this.setPosition(position);
+    // }
+    
+    stopAnimation(direction: Direction) {
+        const animationManager = this.anims.animationManager;
+        const standingFrame = animationManager.get(direction).frames[1].frame.name;
+        this.anims.stop();
+        this.setFrame(standingFrame);
+    }
+    
+    startAnimation(direction: Direction) {
+        this.anims.play(this.entity+"-walk-"+direction.toLowerCase());
+    }
+    
+    getTilePos(): Phaser.Math.Vector2 {
+        return this.tilePos.clone();
+    }
+    
+    setTilePos(tilePosition: Phaser.Math.Vector2): void {
+        this.tilePos = tilePosition.clone();
+    }
+
 }
 
 Phaser.GameObjects.GameObjectFactory.register('player', 
