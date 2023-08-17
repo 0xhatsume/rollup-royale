@@ -2,7 +2,8 @@ import React, {useEffect, useRef} from 'react';
 import Phaser from 'phaser';
 import GameSceneFlat from '../phaser/GameSceneFlat';
 import usePhaserGame from '../phaser/usePhaserGame';
-import { BsPlayFill, BsFillPauseFill, BsFillHandThumbsUpFill } from 'react-icons/bs';
+import { BsPlayFill, BsFillPauseFill, BsFillHandThumbsUpFill, 
+  BsHourglassSplit } from 'react-icons/bs';
 import {BiMoneyWithdraw} from 'react-icons/bi';
 import { GiHighPunch, GiEntryDoor, GiExitDoor} from 'react-icons/gi';
 import { Button, Tooltip } from 'flowbite-react';
@@ -47,6 +48,53 @@ const GameRoom = () => {
         border-orange-500 border-2
 
         ">
+            {/* game status bar */}
+            <div className="flex flex-row
+            justify-between items-center
+            ">
+
+              {/* game status */}
+              <div className="flex flex-row 
+              justify-start items-center 
+              text-white font-bold
+              ">
+                <span className="mx-2">Game Status:</span> 
+                <span className="px-4 py-2 
+                  bg-lightbeige text-background1
+                  rounded-lg
+                  ">Pre-Start</span>
+                </div>
+              
+              <div className="flex flex-row
+              items-center px-2
+              ">
+                <span className="text-white font-bold
+                mx-2
+                ">
+                  Players Status: </span>
+                <div className="
+                flex flex-row items-center
+                text-prime1 h-12 mx-1
+                "><BsHourglassSplit/>
+                </div>
+                <div className="
+                flex flex-row items-center
+                text-prime1 h-12 mx-1
+                "><BsHourglassSplit/>
+                </div>
+                <div className="
+                flex flex-row items-center
+                text-prime1 h-12 mx-1
+                "><BsHourglassSplit/>
+                </div>
+                <div className="
+                flex flex-row items-center
+                text-prime1 h-12 mx-1
+                "><BsHourglassSplit/>
+                </div>
+              </div>
+            </div>
+
             <div id="phaser-div" className="
             App
             h-[60vh] aspect-square mt-0
@@ -71,9 +119,9 @@ const GameRoom = () => {
                   py-2
                 ">
                   <BsPlayFill className="mx-0
-                  w-12 h-6"/>
+                  w-10 h-6"/>
                   <GiHighPunch className="mx-0 
-                  w-12 h-6"/>
+                  w-10 h-6"/>
                 </Button>
               </Tooltip>
 
@@ -125,8 +173,8 @@ const GameRoom = () => {
                   hover:text-prime2 hover:bg-prime2/5
                   py-2
                   ">
-                  <BiMoneyWithdraw className="w-12 h-6"/>
-                  <GiEntryDoor className="w-12 h-6"/>
+                  <BiMoneyWithdraw className="w-10 h-6"/>
+                  <GiEntryDoor className="w-10 h-6"/>
                 </Button>
               </Tooltip>
 
