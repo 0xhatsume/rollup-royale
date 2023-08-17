@@ -536,7 +536,7 @@ contract Royale is Ownable {
 
         // set player spawn
         games[_roomId].board[spawnTile].occupantId = playerId;
-        games[_roomId].positions[0] = spawnTile;
+        games[_roomId].positions[playerId-1] = spawnTile;
 
         emit PlayerJoined(_roomId, msg.sender);
     }
