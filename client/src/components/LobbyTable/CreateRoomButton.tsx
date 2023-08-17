@@ -1,11 +1,22 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {Button, Modal} from 'flowbite-react';
 import { useAccount } from 'wagmi';
+import { ROYALE_ADDRESS } from '../../config/constants';
+import royaleabi from '../../config/abis/royale.json';
+import {toBn} from "evm-bn";
+import { parseEther } from 'viem';
+import { useContractWrite, usePrepareContractWrite} from 'wagmi';
 
 const CreateRoomButton = () => {
     const [openModal, setOpenModal] = useState<string | undefined>();
     const props = { openModal, setOpenModal };
     const {address, isConnected} = useAccount();
+
+    const { data, isLoading, isSuccess, write } = useContractWrite({
+        address: ROYALE_ADDRESS,
+        abi: royaleabi.abi,
+        functionName: 'createGame',
+    })
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -13,20 +24,27 @@ const CreateRoomButton = () => {
         const boardheight = e.currentTarget.boardrows.value;
         const boardwidth = e.currentTarget.boardcols.value;
         const gameplayernums = e.currentTarget.maxplayers.value;
-        const minstake = e.currentTarget.minstake.value;
-        console.log("create room params")
-        console.log("roomname: "+ roomname)
-        console.log("board size: "+ boardheight+"x"+boardwidth)
-        console.log("max players: "+ gameplayernums)
-        console.log("minimum stake: "+ minstake)
+        const minstake = parseEther(e.currentTarget.minstake.value);
 
-        // createGame(parseInt(boardwidth),parseInt(boardheight), address,
-        // toBn(parseFloat(minstake).toFixed(5)), 
-        // parseInt(gameplayernums), roomname).then(
-        // ).then(
-        //     setWorldModalVisible(false)
-        // )
+        console.log("Royale Address: "+ ROYALE_ADDRESS)
+        // console.log("create room params")
+        // console.log("roomname: "+ roomname)
+        // console.log("board size: "+ boardheight+"x"+boardwidth)
+        // console.log("max players: "+ gameplayernums)
+        console.log("minimum stake: "+ minstake)
+        
+        write({
+            args: [minstake.toString()],
+            value: minstake,
+        })
     }
+
+    useEffect(() => {
+        if (isSuccess && props.openModal === 'createGameRoom') {
+            console.log("create room success")
+            props.setOpenModal(undefined);
+        }
+    }, [isSuccess, isLoading, data])
 
     return (
         <>
