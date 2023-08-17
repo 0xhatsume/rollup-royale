@@ -7,8 +7,11 @@ import { GridPhysics } from './movement/GridPhysics';
 
 class GameSceneFlat extends Phaser.Scene {
     private player1!: Player
+    private player2!: Player
+    private player3!: Player
+    private player4!: Player
     private gridControls!: GridControls
-    private gridPhysics!: GridPhysics
+    private playerGridPhysics!: GridPhysics
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
     private scalefactor : number = 3
     static readonly SCALEFACTOR = 3;
@@ -24,6 +27,10 @@ class GameSceneFlat extends Phaser.Scene {
         this.load.tilemapTiledJSON('map10by10', '/maps/lr10by10.json')
 
         this.load.atlas('hs-cyan','/characters/hscyan.png', '/characters/hscyan.json')
+        this.load.atlas('s-yellow', '/characters/syellow.png', '/characters/syellow.json')
+        this.load.atlas('m-red', '/characters/mred.png', '/characters/mred.json')
+        this.load.atlas('op-cyan', '/characters/opcyan.png', '/characters/opcyan.json')
+
         this.cursors= this.input.keyboard.createCursorKeys()
     }
 
@@ -37,18 +44,35 @@ class GameSceneFlat extends Phaser.Scene {
         )
         ground.scale = this.scalefactor
 
+
         this.player1 = this.add.player(
             1,1, 'hs-cyan', 'tile000.png', 'player1')
         this.player1.scale = this.scalefactor
-        
-        this.gridPhysics = new GridPhysics(this.player1, map)
-        this.gridControls = new GridControls(this.gridPhysics)
+
+
+        // enemy sprites
+        this.player2 = this.add.player(
+            8,1, 's-yellow', 'tile000.png', 'player2')
+        this.player2.scale = this.scalefactor
+
+        this.player3 = this.add.player(
+            1,8, 'm-red', 'tile000.png', 'player3')
+        this.player3.scale = this.scalefactor
+
+        this.player4 = this.add.player(
+            8,8, 'op-cyan', 'tile000.png', 'player4')
+        this.player4.scale = this.scalefactor
+
+
+        this.playerGridPhysics = new GridPhysics(this.player1, map)
+        // give control to player1 physics
+        this.gridControls = new GridControls(this.playerGridPhysics)
         //console.log(Phaser.Math.Vector2.DOWN)
     }
 
     update(t:number, dt:number){
         this.gridControls.update(this.cursors)
-        this.gridPhysics.update(dt)
+        this.playerGridPhysics.update(dt)
     }
 
 }
