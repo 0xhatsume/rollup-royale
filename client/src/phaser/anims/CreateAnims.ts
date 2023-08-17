@@ -2,6 +2,14 @@ import Phaser from 'phaser';
 
 const createPlayerAnims = (anims: Phaser.Animations.AnimationManager) => {
     anims.create({
+        key: 'chest-idle-down',
+        frames: anims.generateFrameNames(
+            'chest', {prefix: 'tile00', start: 0, end: 8, suffix: '.png'}),
+        repeat: -1,
+        frameRate: 8
+    });
+    
+    anims.create({
         key: 'player1-walk-down',
         frames: anims.generateFrameNames(
             'hs-cyan', {prefix: 'tile00', start: 0, end: 4, suffix: '.png'}),

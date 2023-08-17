@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { createPlayerAnims} from './anims/CreateAnims';
 import Player from './characters/Player';
+import Chest from './characters/Chest';
 import './characters/Player'; //as typing
+import './characters/Chest'; //as typing
 import { GridControls } from './movement/GridControls';
 import { GridPhysics } from './movement/GridPhysics';
 
@@ -10,6 +12,7 @@ class GameSceneFlat extends Phaser.Scene {
     private player2!: Player
     private player3!: Player
     private player4!: Player
+    private chest1!: Phaser.GameObjects.Sprite
     private gridControls!: GridControls
     private playerGridPhysics!: GridPhysics
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -30,6 +33,8 @@ class GameSceneFlat extends Phaser.Scene {
         this.load.atlas('s-yellow', '/characters/syellow.png', '/characters/syellow.json')
         this.load.atlas('m-red', '/characters/mred.png', '/characters/mred.json')
         this.load.atlas('op-cyan', '/characters/opcyan.png', '/characters/opcyan.json')
+
+        this.load.atlas('chest','/characters/chest.png', '/characters/chest.json')
 
         this.cursors= this.input.keyboard.createCursorKeys()
     }
@@ -62,7 +67,8 @@ class GameSceneFlat extends Phaser.Scene {
         this.player4 = this.add.player(
             8,8, 'op-cyan', 'tile000.png', 'player4')
         this.player4.scale = this.scalefactor
-
+        
+        this.chest1 = this.add.chest(5,5, 'chest', 'tile000.png', 'chest1')
 
         this.playerGridPhysics = new GridPhysics(this.player1, map)
         // give control to player1 physics
