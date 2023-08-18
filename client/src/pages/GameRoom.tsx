@@ -7,6 +7,7 @@ import {BiMoneyWithdraw} from 'react-icons/bi';
 import { GiHighPunch, GiEntryDoor, GiExitDoor} from 'react-icons/gi';
 import { Button, Tooltip } from 'flowbite-react';
 import GameStatusBar from '../components/GameRoom/GameStatusBar';
+import FTstatusBar from '../components/GameRoom/FTstatusBar';
 
 
 const GameRoom = () => {
@@ -50,6 +51,8 @@ const GameRoom = () => {
         ">
             {/* game status bar */}
             <GameStatusBar/>
+
+            <FTstatusBar/>
 
             <div id="phaser-div" className="
             App

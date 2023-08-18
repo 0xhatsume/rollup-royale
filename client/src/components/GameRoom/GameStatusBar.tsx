@@ -13,17 +13,18 @@ const GameStatusBar = () => {
                 {/* game status */}
                 <div className="flex flex-row 
                 justify-start items-center 
-                text-white font-bold
+                text-white font-semibold text-base
                 ">
                 <span className="mx-2">Game Status:</span> 
-                <span className="px-4 py-2 
+                <span className="px-4 py-1 
                     bg-lightbeige text-background1
                     rounded-lg
                     ">Pre-Start</span>
                 </div>
                 
+                {/* players status */}
                 <div className="flex flex-row
-                items-center px-2
+                justify-end items-center px-0
                 ">
                 <span className="text-white font-bold
                 mx-2
