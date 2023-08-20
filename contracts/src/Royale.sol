@@ -14,10 +14,10 @@ contract Royale is Ownable {
     bool public useBurnerWallet = true;
     //bool public allUseBurnerWallet = true;
 
-    event GameCreated(uint256 _roomId, address _creator);
+    event GameCreated(uint256 indexed _roomId, address indexed _creator);
     event GameAbandoned(uint256 _roomId); //
     event GameStarted(uint256 _roomId);
-    event PlayerJoined(uint256 _roomId, address _player);
+    event PlayerJoined(uint256 indexed _roomId, address indexed _player);
     event PlayerReady(uint256 _roomId, address _player);
     event PlayerNotReady(uint256 _roomId, address _player);
     event PlayerPaused(uint256 _roomId, address _player);
@@ -28,12 +28,13 @@ contract Royale is Ownable {
     event PlayerKilled(uint256 _roomId, address _player);
     event PlayerLeft(uint256 _roomId, address _player);
     event ItemSpawned(uint256 _roomId, uint8 _itemId, uint8 _tile);
-    event GameEnded(uint256 _roomId, address _winner);
-    event RewardSent(uint256 _roomId, address _winner, uint256 _reward);
+    event GameEnded(uint256 indexed _roomId, address indexed _winner);
+    event RewardSent(uint256 indexed _roomId, address indexed _winner, uint256 indexed _reward);
 
     constructor(address _burnerWallet){
         burnerWallet = _burnerWallet;
         games.push(); //pad with a dummy game
+        games[0].info.hasEnded = true; // set dummy game to end
     }
 
     //array of all game rooms
@@ -215,7 +216,27 @@ contract Royale is Ownable {
         }
         return 0;
     }
+
+    function getTotalGames() public view returns (uint256) {
+        return games.length;
+    }
+
+    function getGameInfo(uint256 _roomId) public view returns (GameInfo memory){
+        return games[_roomId].info;
+    }
     
+    function getRoomPlayersCount(uint256 _roomId) public view returns (uint8) {
+        return games[_roomId].info.playersCount;
+    }
+
+    function getRoomMinStake(uint256 _roomId) public view returns (uint256) {
+        return games[_roomId].info.minStake;
+    }
+
+    function getRoomTotalStaked(uint256 _roomId) public view returns (uint256) {
+        return games[_roomId].info.totalStaked;
+    }
+
     // setters
     function setBurnerWallet(address _burnerWallet) public onlyOwner {
         burnerWallet = _burnerWallet;
@@ -464,6 +485,7 @@ contract Royale is Ownable {
         worldFunctioning()
         enoughFunds(msg.value, _minStake) 
         playerNotInGame()
+        returns (uint256)
     {
         GameRoom memory game;
         game.info.gameCreator = msg.sender;
@@ -493,11 +515,11 @@ contract Royale is Ownable {
         games[roomId].positions[0] = spawnTile;
 
         emit GameCreated(roomId, msg.sender);
+        return roomId;
     }
 
     function joinGame(uint256 _roomId) external payable 
         worldFunctioning()
-        enoughFunds(msg.value, games[_roomId].info.minStake) 
         playerNotInGame()
         joinable(_roomId)
     {   
@@ -645,7 +667,7 @@ contract Royale is Ownable {
         return true;
     }
 
-    function startGame(uint256 _roomId) external payable 
+    function startGame(uint256 _roomId) external
         worldFunctioning 
         enoughPlayers(_roomId)
         allPlayersReady(_roomId)
