@@ -41,29 +41,28 @@ const GameRoom = () => {
     <div className="w-full md:w-[768px] mx-auto
             flex flex-col
             p-0 h-screen
-            border border-green-400
+            
             items-center
         "
       >
         <div className="w-[60vh]
-        border-orange-500 border-2
 
         ">
             {/* game status bar */}
             <GameStatusBar/>
 
             <FTstatusBar/>
-
+            {/* border-2 border-blue-500 rounded-lg */}
             <div id="phaser-div" className="
             App
             h-[60vh] aspect-square mt-0
-            border-2 border-blue-500 rounded-lg
+            
             overflow-hidden
             "/>
 
             <div className="flex flex-row
                 py-2
-                border border-yellow-300
+                
                 justify-between items-center
                 ">
 
